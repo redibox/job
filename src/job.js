@@ -129,7 +129,7 @@ class Job {
    * @returns {*}
    */
   save(cb = noop) {
-    this.id = this.queueName + '-' + (this.options.unique ? sha1sum(this.data) : cuid());
+    this.id = `${this.queueName}-${(this.options.unique ? sha1sum(this.data) : cuid())}`;
 
     if (this.options.notifySuccess) {
       this.options.notifySuccess = `job:${this.id}:success`;
