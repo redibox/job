@@ -1,0 +1,23 @@
+{
+  "parser": "babel-eslint",
+  "extends": [
+    "airbnb"
+  ],
+  "rules": {
+    "no-underscore-dangle": 0,
+    "no-param-reassign": 0,
+    "max-len": [1,150],
+  },
+  "globals": {
+    "describe": true,
+    "RediBox": true,
+    "RediBoxCluster": true,
+    "HOOK_NAME": true,
+    "beforeEach": true,
+    "Hook": true,
+    "HookCluster": true,
+    "it": true,
+    "before": true,
+    "after": true
+  }
+}
