@@ -1,10 +1,10 @@
 {
-  "name": "redibox-hook-cache",
-  "description": "Advanced redibox powered caching",
+  "name": "redibox-hook-job",
+  "description": "Advanced redibox powered jobs and queues",
   "version": "1.0.0",
   "main": "lib/index.js",
   "author": "Mike Diarmid",
-  "repository": "redibox/cache",
+  "repository": "redibox/job",
   "license": "MIT",
   "engines": {
     "node": ">=4.3"
