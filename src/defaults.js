@@ -4,9 +4,7 @@
 export default {
   enabled: true,
   queues: [],
-  queue: {
-    stallInterval: 5000,
-    prefix: 'job',
-  },
+  stallInterval: 5000,
+  keyPrefix: 'job',
 };
 

@@ -56,20 +56,17 @@ clusterConfig.hooks[global.HOOK_NAME] = UserHook;
 before(done => {
   global.RediBox = new Redibox(config, () => {
     global.Hook = RediBox.hooks[global.HOOK_NAME];
-    global.RediBoxCluster = new Redibox(clusterConfig, () => {
-      global.HookCluster = global.RediBoxCluster.hooks[global.HOOK_NAME];
-      done();
-    });
+    done();
   });
 });
 
 beforeEach(() => {
-  Promise.all([
-    RediBox.client.flushall(),
-    RediBoxCluster.cluster.flushall(),
-  ]);
+  // Promise.all([
+  //   RediBox.client.flushall(),
+  //   // RediBoxCluster.cluster.flushall(),
+  // ]);
 });
 
 after(() => {
-  RediBox.disconnect();
+  // RediBox.disconnect();
 });

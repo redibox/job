@@ -2,7 +2,7 @@ import Job from './job';
 import Promise from 'bluebird';
 import defaults from './defaults';
 import EventEmitter from 'eventemitter3';
-import { deepGet, isObject, getTimeStamp, tryJSONParse, tryJSONStringify } from 'redibox';
+import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
 
 export default class Queue extends EventEmitter {
 
@@ -16,6 +16,7 @@ export default class Queue extends EventEmitter {
     super();
     this.jobs = {};
     this.core = core;
+    this.client = core.client;
     this.paused = false;
     this.started = false;
     this.log = this.core.log;
@@ -60,14 +61,14 @@ export default class Queue extends EventEmitter {
       });
   }
 
-  /**
-   *
-   * @param data
-   * @returns {Job}
-   */
-  createJob(data) {
-    return new Job(this, null, data);
-  }
+  // /**
+  //  *
+  //  * @param data
+  //  * @returns {Job}
+  //  */
+  // createJob(data) {
+  //   return new Job(this, null, data);
+  // }
 
   /**
    *
@@ -95,12 +96,11 @@ export default class Queue extends EventEmitter {
    */
   _getNextJob() {
     this.log.verbose(`Getting next job for queue '${this.name}'.`);
-    return this.clients.blocker.brpoplpush(
+    return this.clients.block.brpoplpush(
       this.toKey('waiting'),
-      this.toKey('active')
+      this.toKey('active'), 0
     ).then(jobId =>
       Job.fromId(this, jobId).then(job => {
-        this.jobs[jobId] = job;
         return job;
       })
     );
@@ -112,6 +112,7 @@ export default class Queue extends EventEmitter {
    * @returns {Promise}
    */
   _runJob(job) {
+    if (!job || !job.data) return Promise.resolve();
     const runs = job.data && job.data.runs && Array.isArray(job.data.runs) ? job.data.runs[0] : job.data.runs;
     const handler = (typeof this.handler === 'string' ?
         deepGet(global, this.handler) : this.handler) || deepGet(global, runs);
@@ -211,7 +212,7 @@ export default class Queue extends EventEmitter {
       return handler(job).then(handleOK, handleError).catch(handleError);
     }
 
-    return job::handler(job).then(handleOK, handleError).catch(handleError);
+    return handler.bind(job, job)(job).then(handleOK, handleError).catch(handleError);
   }
 
   /**
@@ -228,9 +229,9 @@ export default class Queue extends EventEmitter {
     return new Promise((resolve, reject) => {
       const status = error ? 'failed' : 'succeeded';
 
-      const multi = this.client.multi()
-                        .lrem(this.toKey('active'), 0, job.id)
-                        .srem(this.toKey('stalling'), job.id);
+      const multi = this.client.multi();
+      multi.lrem(this.toKey('active'), 0, job.id);
+      multi.srem(this.toKey('stalling'), job.id);
 
       const event = {
         job: {
@@ -293,7 +294,7 @@ export default class Queue extends EventEmitter {
         job.data.from_timestamp = getTimeStamp();
         job.data.data = data;
 
-        return this.core.job.create(nextQueue, job.data).then(() => {
+        return this.core.hooks.job.create(nextQueue, job.data).then(() => {
           multi.exec(errMulti => {
             if (errMulti) return reject(errMulti);
             return resolve({ status, result: error || data });
@@ -380,7 +381,7 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _jobTick = () => {
-    if (this.paused || !this.options.disabled) {
+    if (this.paused || !this.options.enabled) {
       return void 0;
     }
 
@@ -413,7 +414,7 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _restartProcessing = () => {
-    this.clients.blocker.once('ready', this._jobTick);
+    this.clients.block.once('ready', this._jobTick);
   };
 
   /**
@@ -421,7 +422,8 @@ export default class Queue extends EventEmitter {
    * @param concurrency
    */
   process(concurrency = 1) {
-    if (this.started || !this.options.enbled) {
+    if (this.started || !this.options.enabled) {
+      this.log.info(`Queue ${this.name} is currently disabled.`)
       return void 0;
     }
 
@@ -432,10 +434,11 @@ export default class Queue extends EventEmitter {
 
     this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.concurrency}.`);
 
-    this.clients.blocker.once('error', this._restartProcessing);
-    this.clients.blocker.once('close', this._restartProcessing);
+    this.clients.block.once('error', this._restartProcessing);
+    this.clients.block.once('close', this._restartProcessing);
 
     this.checkStalledJobs().then(() => {
+      this.log.verbose('checkStalledJobs completed');
     }).catch(() => {
     });
 
@@ -447,6 +450,7 @@ export default class Queue extends EventEmitter {
    * @returns {*}
    */
   checkStalledJobs() {
+    this.log.verbose('checkStalledJobs');
     return this.client.checkstalledjobs(
       this.toKey('stallTime'),
       this.toKey('stalling'),
@@ -460,7 +464,7 @@ export default class Queue extends EventEmitter {
       }
 
       return Promise.delay(this.options.stallInterval).then(this.checkStalledJobs);
-    }).cancellable();
+    });
   }
 
   /**
@@ -470,9 +474,9 @@ export default class Queue extends EventEmitter {
    */
   toKey(str) {
     if (this.core.cluster.isCluster()) {
-      return `${this.options.prefix}:{${this.name}}:${str}`;
+      return `${this.options.keyPrefix}:{${this.name}}:${str}`;
     }
-    return `${this.options.prefix}:${this.name}:${str}`;
+    return `${this.options.keyPrefix}:${this.name}:${str}`;
   }
 
   /**

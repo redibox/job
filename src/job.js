@@ -26,17 +26,27 @@
 
 import cuid from 'cuid';
 import Promise from 'bluebird';
-import { noop, sha1sum } from 'redibox';
+import { noop, sha1sum, tryJSONStringify, tryJSONParse } from 'redibox';
 
 /**
  * @class Job
  */
 class Job {
 
+  /**
+   *
+   * @param core
+   * @param id
+   * @param data
+   * @param options
+   * @param queueName
+   * @param isNew
+   * @returns {*}
+   */
   constructor(core, id, data = {}, options = {
     unique: false,
     timeout: 60000, // 1 minute default timeout
-  }, queueName) {
+  }, queueName, isNew) {
     this.id = id;
     this.core = core;
     this.data = data;
@@ -44,7 +54,7 @@ class Job {
     this.options = options;
     this.queueName = queueName;
     this.subscriptions = [];
-    return this.save();
+    if (isNew) return this.save();
   }
 
   /**
@@ -54,11 +64,8 @@ class Job {
    * @param id
    */
   static fromId(queue, id) {
-    return new Promise(function (resolve, reject) {
-      queue.core.client.hget(queue.toKey('jobs'), id, function (err, data) {
-        if (err) return reject(err);
-        return resolve(Job.fromData(queue, id, data));
-      });
+    return queue.client.hget(queue.toKey('jobs'), id).then((data) => {
+      return Job.fromData(queue, id, data);
     });
   }
 
@@ -71,14 +78,8 @@ class Job {
    * @returns {Job | null}
    */
   static fromData(queue, id, data) {
-    let obj;
-    try {
-      obj = JSON.parse(data);
-    } catch (JSONParseError) {
-      queue.core.log.error(`ERR_JSON: Error while parsing json string for job '${id}'.`);
-      queue.core.log.error(JSONParseError);
-      return null;
-    }
+    const obj = tryJSONParse(data);
+    if (!obj) return null;
     const job = new Job(queue.core, id, obj.data, obj.options, queue.name);
     job.status = obj.data.status;
     return job;
@@ -88,11 +89,11 @@ class Job {
    * Convert this Job instance to a json string.
    */
   toData() {
-    return JSON.stringify({
+    return tryJSONStringify({
       id: this.id,
       data: this.data,
-      options: this.options,
       status: this.status,
+      options: this.options,
     });
   }
 
@@ -116,7 +117,7 @@ class Job {
         this.core.log.verbose(`Saved job for ${this.queueName}`);
         this.id = id;
         this.status = 'saved';
-        this.queue.jobs[id] = this;
+        // this.queue.jobs[id] = this;
         return Promise.resolve(this);
       }
     );
@@ -125,10 +126,9 @@ class Job {
   /**
    * Save this instance of Job to redis. Any active queues will pick it up
    * immediately for processing.
-   * @param cb
    * @returns {*}
    */
-  save(cb = noop) {
+  save() {
     this.id = `${this.queueName}-${(this.options.unique ? sha1sum(this.data) : cuid())}`;
 
     if (this.options.notifySuccess) {
@@ -142,8 +142,9 @@ class Job {
     }
 
     if (this.options.notifySuccess || this.options.notifyFailure) {
-      return this.core.subscribeOnceOf(
-        this.subscriptions, (message) => { // on message received
+      return this.core.pubsub.subscribeOnceOf(
+        this.subscriptions,
+        (message) => { // on message received
           const channel = message.channel;
 
           // remove the pubsub data
@@ -162,21 +163,21 @@ class Job {
           }
 
           return this.onFailureCallback(message);
-        }, (err) => { // subscribed callback
-          if (err) {
-            this.onFailureCallback({
-              type: 'job',
-              error: new Error('Error while subscribing to job events, however this job will still be queued - ' +
-                'you may be unable to receive onComplete / onFailure events for this job.')
-            });
-          }
-          this._save(cb);
-          // adding a additional 2s onto the subscribe timeout to allow timeout
-          // on the job to emit it's own timeout event.
-        }, this.options.timeout + 2000);
+        },
+        this.options.timeout + 2000
+      ).then(() =>  // subscribed callback
+        this._save()
+      ).catch(error =>
+        this.onFailureCallback({
+          type: 'job',
+          error: new Error('Error while subscribing to job events, however this job will still be queued - ' +
+            'you may be unable to receive onComplete / onFailure events for this job.'),
+          error_actual: error,
+        })
+      );
     }
-    this._save(cb);
-    return this;
+
+    return this._save();
   }
 
   /**
@@ -229,24 +230,6 @@ class Job {
   timeout(ms) {
     this.options.timeout = ms;
     return this;
-  }
-
-  /**
-   * Usable in the task runner for this job. Allows reporting progress back to the original
-   * job creator.
-   * @param progress
-   * @param cb
-   * @returns {*}
-   */
-  setProgress(progress, cb = noop) {
-    // right now we just send the pubsub event
-    // might consider also updating the job hash for persistence
-    const numProgress = Number(progress);
-    if (numProgress < 0 || numProgress > 100) {
-      return process.nextTick(cb.bind(null, Error('Progress must be between 0 and 100')));
-    }
-    this.progress = numProgress;
-    this.core.publish(this._toQueueKey(`progress:${this.id}`), numProgress, cb);
   }
 
   /**
@@ -307,9 +290,9 @@ class Job {
    */
   _toQueueKey(str) {
     if (this.core.cluster.isCluster()) {
-      return `${this.core.options.job.prefix}:{${this.queueName}}:${str}`;
+      return `${this.core.hooks.job.options.keyPrefix}:{${this.queueName}}:${str}`;
     }
-    return `${this.core.options.job.prefix}:${this.queueName}:${str}`;
+    return `${this.core.hooks.job.options.keyPrefix}:${this.queueName}:${str}`;
   }
 
 }

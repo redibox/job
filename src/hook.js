@@ -2,6 +2,7 @@ import Job from './job';
 import Queue from './queue';
 import Promise from 'bluebird';
 import defaults from './defaults';
+import scripts from './scripts';
 import { BaseHook } from 'redibox';
 
 export default class JobHook extends BaseHook {
@@ -17,6 +18,14 @@ export default class JobHook extends BaseHook {
    */
   defaults() {
     return defaults;
+  }
+
+  /**
+   *
+   * @returns {{addJob, checkStalledJobs, removeJob}}
+   */
+  scripts() {
+    return scripts;
   }
 
   /**
@@ -44,7 +53,7 @@ export default class JobHook extends BaseHook {
    */
   create(queue, data, options) {
     this.log.verbose(`Creating task for ${queue}`);
-    return new Job(this.core, null, data, options, queue);
+    return new Job(this.core, null, data, options, queue, true);
   }
 
   /**

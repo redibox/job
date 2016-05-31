@@ -36,6 +36,7 @@
   "scripts": {
     "build": "babel src --out-dir lib",
     "build-watch": "babel src --watch --out-dir lib",
+    "debug": "devtool tests.js --no-nt --console -- --verbose",
     "example": "cd example && ./../node_modules/.bin/babel-node app.js",
     "coveralls": "cat ./coverage/lcov.info | coveralls",
     "prepublish": "npm run lint && npm run build",
