@@ -75,6 +75,102 @@ global.RediBox = new Redibox(config, () => {
       },
     }).then(() => {
     }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
+
+    Hook.create('test2', {
+      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+      data: {
+        foo: 'bar',
+      },
+    }).then(() => {
+    }).catch(console.error);
   });
 });
 

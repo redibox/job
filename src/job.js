@@ -55,6 +55,7 @@ class Job {
     this.queueName = queueName;
     this.subscriptions = [];
     if (isNew) return this.save();
+    return this;
   }
 
   /**
@@ -64,9 +65,9 @@ class Job {
    * @param id
    */
   static fromId(queue, id) {
-    return queue.client.hget(queue.toKey('jobs'), id).then((data) => {
-      return Job.fromData(queue, id, data);
-    });
+    return queue.client.hget(queue.toKey('jobs'), id).then((data) =>
+      Job.fromData(queue, id, data)
+    );
   }
 
   /**
@@ -276,7 +277,7 @@ class Job {
    * @param cb
    */
   isInSet(set, cb = noop) {
-    this.core.client.sismember(this._toQueueKey(set), this.id, function (err, result) {
+    this.core.client.sismember(this._toQueueKey(set), this.id, (err, result) => {
       if (err) return cb(err);
       return cb(null, result === 1);
     });

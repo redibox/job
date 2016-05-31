@@ -423,7 +423,7 @@ export default class Queue extends EventEmitter {
    */
   process(concurrency = 1) {
     if (this.started || !this.options.enabled) {
-      this.log.info(`Queue ${this.name} is currently disabled.`)
+      this.log.info(`Queue ${this.name} is currently disabled.`);
       return void 0;
     }
 
@@ -442,7 +442,7 @@ export default class Queue extends EventEmitter {
     }).catch(() => {
     });
 
-    this._jobTick();
+    return this._jobTick();
   }
 
   /**
