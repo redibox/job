@@ -394,7 +394,7 @@ export default class Queue extends EventEmitter {
         setImmediate(this._jobTick);
       }
 
-      this._runJob(job).then(() => {
+      return this._runJob(job).then(() => {
         this.running--;
         this.queued--;
         setImmediate(this._jobTick);
