@@ -162,6 +162,12 @@ class Job {
     }
 
     if (this.options.notifySuccess || this.options.notifyFailure) {
+      if (!this.core.pubsub.options.subscriber) {
+        return Promise.reject(
+          new Error('Cannot subscribe to job events when RediBox.pubsub \'subscriber\' config is set to disabled.')
+        );
+      }
+
       return this.core.pubsub.subscribeOnceOf(this.subscriptions, (message) => { // on message received
         const channel = message.channel;
 
