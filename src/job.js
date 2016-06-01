@@ -54,7 +54,26 @@ class Job {
     this.options = options;
     this.queueName = queueName;
     this.subscriptions = [];
-    if (isNew) return this.save();
+    if (isNew) {
+      // this Proxy allows chaining methods while still keeping the
+      // save() promise valid
+      this.proxy = new Proxy(this, {
+        get(target, name) {
+          if (name in target) {
+            return target[name];
+          }
+
+          // haxxors
+          if (name === 'then') {
+            target.promise = target.save();
+            return target.promise.then.bind(target.promise);
+          }
+
+          return undefined;
+        },
+      });
+      return this.proxy;
+    }
     return this;
   }
 
@@ -143,30 +162,26 @@ class Job {
     }
 
     if (this.options.notifySuccess || this.options.notifyFailure) {
-      return this.core.pubsub.subscribeOnceOf(
-        this.subscriptions,
-        (message) => { // on message received
-          const channel = message.channel;
+      return this.core.pubsub.subscribeOnceOf(this.subscriptions, (message) => { // on message received
+        const channel = message.channel;
 
-          // remove the pubsub data
-          if (message.data) {
-            message = message.data;
-          }
+        // remove the pubsub data
+        if (message.data) {
+          message = message.data;
+        }
 
-          // if there's an error the assume failed.
-          if (message.error) {
-            return this.onFailureCallback(message);
-          }
-
-          // is it from the success channel.
-          if (this.subscriptions[0] === channel) {
-            return this.onSuccessCallback(message);
-          }
-
+        // if there's an error the assume failed.
+        if (message.error) {
           return this.onFailureCallback(message);
-        },
-        this.options.timeout + 2000
-      ).then(() =>  // subscribed callback
+        }
+
+        // is it from the success channel.
+        if (this.subscriptions[0] === channel) {
+          return this.onSuccessCallback(message);
+        }
+
+        return this.onFailureCallback(message);
+      }, this.options.timeout + 2000).then(() =>  // subscribed callback
         this._save()
       ).catch(error =>
         this.onFailureCallback({
@@ -191,7 +206,7 @@ class Job {
       throw Error('Retries cannot be negative');
     }
     this.options.retries = n - 1;
-    return this;
+    return this.proxy;
   }
 
   /**
@@ -203,7 +218,7 @@ class Job {
     this.options.notifySuccess = true;
     this.onSuccessCallback = notify;
     if (!this.onFailureCallback) this.onFailureCallback = noop;
-    return this;
+    return this.proxy;
   }
 
   /**
@@ -215,12 +230,17 @@ class Job {
     this.options.notifyFailure = true;
     this.onFailureCallback = notify;
     if (!this.onSuccessCallback) this.onSuccessCallback = noop;
-    return this;
+    return this.proxy;
   }
 
+  /**
+   *
+   * @param bool
+   * @returns {Job}
+   */
   unique(bool) {
     this.options.unique = bool;
-    return this;
+    return this.proxy;
   }
 
   /**
@@ -230,7 +250,7 @@ class Job {
    */
   timeout(ms) {
     this.options.timeout = ms;
-    return this;
+    return this.proxy;
   }
 
   /**

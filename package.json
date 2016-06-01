@@ -1,17 +1,13 @@
 {
   "name": "redibox-hook-job",
   "description": "Advanced redibox powered jobs and queues",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "lib/index.js",
   "author": "Mike Diarmid",
   "repository": "redibox/job",
   "license": "MIT",
   "engines": {
-    "node": ">=4.3"
-  },
-  "redibox": {
-    "hook": true,
-    "name": "scheduler"
+    "node": ">=6.0"
   },
   "keywords": [
     "redis",

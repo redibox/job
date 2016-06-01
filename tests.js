@@ -9,6 +9,11 @@ const config = {
   log: {
     level: 'debug',
   },
+  pubsub: {
+    eventPrefix: 'myEvents',
+    subscriber: true,
+    publisher: true,
+  },
   job: {
     queues: [
       { name: 'test', concurrency: 5 },
@@ -20,6 +25,11 @@ config.hooks[global.HOOK_NAME] = UserHook;
 
 const clusterConfig = {
   log: { level: 'error' },
+  pubsub: {
+    eventPrefix: 'myEvents',
+    subscriber: true,
+    publisher: true,
+  },
   redis: {
     connectionTimeout: 2000,
     hosts: [
@@ -64,113 +74,22 @@ global.fooBarEnd = function () {
   return Promise.resolve();
 };
 
+const tester = new Promise((resolve) => {
+  return resolve();
+});
+
 global.RediBox = new Redibox(config, () => {
   global.Hook = RediBox.hooks[global.HOOK_NAME];
   global.RediBoxCluster = new Redibox(clusterConfig, () => {
     global.HookCluster = global.RediBoxCluster.hooks[global.HOOK_NAME];
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
-
-    Hook.create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    }).then(() => {
-    }).catch(console.error);
+    tester.then(() => {
+      return Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'bar',
+        },
+      }).timeout(2000).unique(true).onSuccess((result) => { console.dir(result)});
+    });
   });
 });
 

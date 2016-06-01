@@ -61,12 +61,12 @@ before(done => {
 });
 
 beforeEach(() => {
-  // Promise.all([
-  //   RediBox.client.flushall(),
-  //   // RediBoxCluster.cluster.flushall(),
-  // ]);
+  Promise.all([
+    RediBox.client.flushall(),
+    // RediBoxCluster.cluster.flushall(),
+  ]);
 });
 
-after(() => {
-  // RediBox.disconnect();
+after((done) => {
+  setTimeout(done, 2000);
 });
