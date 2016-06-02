@@ -118,6 +118,19 @@ class Job {
   }
 
   /**
+   *
+   * @returns {*}
+	 */
+  toObject() {
+    return {
+      id: this.id,
+      data: this.data,
+      status: this.status,
+      options: this.options,
+    };
+  }
+
+  /**
    * Internal save that pushes to redis.
    * @private
    */
@@ -138,7 +151,7 @@ class Job {
         this.id = id;
         this.status = 'saved';
         // this.queue.jobs[id] = this;
-        return Promise.resolve(this);
+        return Promise.resolve(this.toObject());
       }
     );
   }
