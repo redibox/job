@@ -68,5 +68,6 @@ beforeEach(() => {
 });
 
 after((done) => {
+  // RediBox.client.disconnect();
   setTimeout(done, 2000);
 });

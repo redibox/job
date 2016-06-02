@@ -29,6 +29,7 @@ describe('job hook', () => {
     }).catch(console.error);
   });
 
+  
   it('Should run relay jobs', (done) => {
     let count = 0;
     global.fooBar = null;
