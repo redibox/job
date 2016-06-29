@@ -160,17 +160,27 @@ export default class Queue extends EventEmitter {
 
       // only log the error if no notifyFailure pubsub set
       if ((!job.data.initialJob || !job.data.initialJob.options.notifyFailure) && !Array.isArray(job.data.runs)) {
-        this.log.error('');
-        this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
-        this.log.error(`Job: ${job.data.runs}` || this.name);
-        if (err.stack) {
-          err.stack.split('\n').forEach(error => {
-            this.log.error(error);
-          });
+        if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
+          console.log(JSON.stringify({
+            level: 'error',
+            type: 'redibox_job',
+            data: {
+              runs: job.data.runs,
+              queue: this.name,
+              stack: err.stack ? err.stack.split('\n').slice(0, 5) : [],
+            },
+          }));
+        } else {
+          this.log.error('');
+          this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
+          this.log.error(`Job: ${job.data.runs}` || this.name);
+          if (err.stack) {
+            this.log.error(err.stack.split('\n').slice(0, 5));
+          }
+          this.log.error(err);
+          this.log.error('------------------------------------------------------');
+          this.log.error('');
         }
-        this.log.error(err);
-        this.log.error('------------------------------------------------------');
-        this.log.error('');
       }
 
       if (job.data.runs && Array.isArray(job.data.runs)) {
@@ -263,19 +273,21 @@ export default class Queue extends EventEmitter {
         if (job.options.retries > 0) {
           job.options.retries = job.options.retries - 1;
           job.status = 'retrying';
-          event.event = 'retrying';
           multi.hset(this.toKey('jobs'), job.id, job.toData());
           multi.lpush(this.toKey('waiting'), job.id);
         } else {
           job.status = 'failed';
-          multi.hset(this.toKey('jobs'), job.id, job.toData());
-          multi.sadd(this.toKey('failed'), job.id);
+          multi.hdel(this.toKey('jobs'), job.id);
+          // TODO track failures and their data somewhere else for reviewing
+          // multi.hset(this.toKey('jobs'), job.id, job.toData());
+          // multi.sadd(this.toKey('failed'), job.id);
         }
       } else {
         job.status = 'succeeded';
-        multi.hset(this.toKey('jobs'), job.id, job.toData());
         multi.hdel(this.toKey('jobs'), job.id);
-        // multi.sadd(this.toKey('succeeded'), job.id); // TODO LOG JOBS
+        // TODO track successes and their data somewhere else for reviewing
+        // multi.hset(this.toKey('jobs'), job.id, job.toData());
+        // multi.sadd(this.toKey('succeeded'), job.id);
       }
 
       // check if we need to relay to another job
@@ -318,6 +330,10 @@ export default class Queue extends EventEmitter {
     });
   }
 
+  _setQueueRunningCount(value) {
+    return this.client.increx(this.toKey('running'), value, 180);
+  }
+
   /**
    *
    * @param error
@@ -343,14 +359,17 @@ export default class Queue extends EventEmitter {
           multi.lpush(this.toKey('waiting'), job.id);
         } else {
           job.status = 'failed';
-          multi.hset(this.toKey('jobs'), job.id, job.toData());
-          multi.sadd(this.toKey('failed'), job.id);
+          multi.hdel(this.toKey('jobs'), job.id);
+          // TODO track failures and their data somewhere else for reviewing
+          // multi.hset(this.toKey('jobs'), job.id, job.toData());
+          // multi.sadd(this.toKey('failed'), job.id);
         }
       } else {
         job.status = 'succeeded';
-        multi.hset(this.toKey('jobs'), job.id, job.toData());
         multi.hdel(this.toKey('jobs'), job.id);
-        // multi.sadd(this.toKey('succeeded'), job.id); // TODO LOG JOBS
+        // TODO track successes and their data somewhere else for reviewing
+        // multi.hset(this.toKey('jobs'), job.id, job.toData());
+        // multi.sadd(this.toKey('succeeded'), job.id);
       }
 
       if (error && (job.options.notifySuccess || job.notifyFailure)) {

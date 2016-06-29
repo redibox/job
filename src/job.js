@@ -120,11 +120,11 @@ class Job {
   /**
    *
    * @returns {*}
-	 */
-  toObject() {
+   */
+  toObject(excludeData) {
     return {
       id: this.id,
-      data: this.data,
+      data: excludeData ? 'hidden' : this.data,
       status: this.status,
       options: this.options,
     };
@@ -150,8 +150,7 @@ class Job {
         this.core.log.verbose(`Saved job for ${this.queueName}`);
         this.id = id;
         this.status = 'saved';
-        // this.queue.jobs[id] = this;
-        return Promise.resolve(this.toObject());
+        return Promise.resolve(this.toObject(true));
       }
     );
   }
@@ -189,7 +188,7 @@ class Job {
           message = message.data;
         }
 
-        // if there's an error the assume failed.
+        // if there's an error then assume failed.
         if (message.error) {
           return this.onFailureCallback(message);
         }
