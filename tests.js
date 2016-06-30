@@ -19,11 +19,10 @@ const config = {
       {
         name: 'test2',
         concurrency: 5,
-        throttle: {
-          limit: 2,
-          seconds: 10,
-          // milliseconds: 10000,
-        }
+        // throttle: {
+        //   limit: 2,
+        //   seconds: 10,
+        // },
       },
       { name: 'test', concurrency: 10 },
     ],
