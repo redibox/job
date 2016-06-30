@@ -16,8 +16,16 @@ const config = {
   },
   job: {
     queues: [
-      { name: 'test', concurrency: 5 },
-      { name: 'test2', concurrency: 10 },
+      {
+        name: 'test2',
+        concurrency: 5,
+        throttle: {
+          limit: 2,
+          seconds: 10,
+          // milliseconds: 10000,
+        }
+      },
+      { name: 'test', concurrency: 10 },
     ],
   },
 };
@@ -88,7 +96,9 @@ global.RediBox = new Redibox(config, () => {
         data: {
           foo: 'bar',
         },
-      }).timeout(2000).unique(true).onSuccess((result) => { console.dir(result)});
+      }).timeout(2000).unique(true).onSuccess((result) => {
+        console.dir(result)
+      });
     });
   });
 });

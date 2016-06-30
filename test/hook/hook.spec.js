@@ -20,7 +20,7 @@ describe('core', () => {
     done();
   });
 
-  it(`Should mount to core.${global.HOOK_NAME}`, (done) => {
+  it(`Should mount to core.job`, (done) => {
     const config = { hooks: {} };
     config.hooks[global.HOOK_NAME] = Hook;
     const redibox = new RediBox(config, () => {

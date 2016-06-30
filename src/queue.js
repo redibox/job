@@ -14,18 +14,18 @@ export default class Queue extends EventEmitter {
    */
   constructor(options, core) {
     super();
-    this.jobs = {};
     this.core = core;
     this.client = core.client;
     this.paused = false;
     this.started = false;
+    this.throttled = false;
     this.log = this.core.log;
     this.name = options.name;
     this.handler = options.handler || null;
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this).then(() => {
       this.log.verbose(`Blocking client for queue '${this.name}' is ready. Starting queue processor.`);
-      this.process(this.options.concurrency);
+      this.beginWorking();
     });
   }
 
@@ -61,35 +61,6 @@ export default class Queue extends EventEmitter {
       });
   }
 
-  // /**
-  //  *
-  //  * @param data
-  //  * @returns {Job}
-  //  */
-  // createJob(data) {
-  //   return new Job(this, null, data);
-  // }
-
-  /**
-   *
-   * @param jobId
-   * @returns {Promise}
-   */
-  // getJob(jobId) {
-  //   return new Promise((resolve, reject) => {
-  //     if (jobId in this.jobs) {
-  //       // we have the job locally
-  //       return resolve(this.jobs[jobId]);
-  //     }
-  //     // not local so gather from redis
-  //     Job.fromId(this, jobId)
-  //        .then(job => {
-  //          this.jobs[jobId] = job;
-  //          return resolve(job);
-  //        }).catch(reject);
-  //   });
-  // }
-
   /**
    *
    * @returns {Promise}
@@ -109,6 +80,37 @@ export default class Queue extends EventEmitter {
   /**
    *
    * @param job
+   * @param jobError
+   * @private
+   */
+  _logJobFailure(job, jobError) {
+    if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
+      /* eslint no-console: 0 */
+      console.log(JSON.stringify({
+        level: 'error',
+        type: 'redibox_job_failure',
+        data: {
+          runs: job.data.runs,
+          queue: this.name,
+          stack: jobError.stack ? jobError.stack.split('\n').slice(0, 5) : [],
+        },
+      }));
+    } else {
+      this.log.error('');
+      this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
+      this.log.error(`Job: ${job.data.runs}` || this.name);
+      if (jobError.stack) {
+        this.log.error(jobError.stack.split('\n').slice(0, 5));
+      }
+      this.log.error(jobError);
+      this.log.error('------------------------------------------------------');
+      this.log.error('');
+    }
+  }
+
+  /**
+   *
+   * @param job
    * @returns {Promise}
    */
   _runJob(job) {
@@ -123,9 +125,7 @@ export default class Queue extends EventEmitter {
     // Handle an "OK" response from the promise
     const handleOK = data => {
       // silently ignore any multiple calls
-      if (handled) {
-        return void 0;
-      }
+      if (handled) return void 0;
 
       clearTimeout(preventStallingTimeout);
       handled = true;
@@ -135,15 +135,13 @@ export default class Queue extends EventEmitter {
         job.data = job._internalData;
       }
 
-      if (job.data.runs && Array.isArray(job.data.runs) && data !== false) {
-        return this._finishMultiJob(null, data, job);
-      }
-
+      // only relay to next job if user did not resolve 'false' on current job
+      if (job.type === 'relay' && data !== false) return this._finishRelayJob(null, data, job);
       return this._finishSingleJob(null, data, job);
     };
 
     // Handle any errors returned
-    const handleError = err => {
+    const handleError = jobError => {
       clearTimeout(preventStallingTimeout);
 
       // silently ignore any multiple calls
@@ -160,33 +158,11 @@ export default class Queue extends EventEmitter {
 
       // only log the error if no notifyFailure pubsub set
       if ((!job.data.initialJob || !job.data.initialJob.options.notifyFailure) && !Array.isArray(job.data.runs)) {
-        if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
-          console.log(JSON.stringify({
-            level: 'error',
-            type: 'redibox_job',
-            data: {
-              runs: job.data.runs,
-              queue: this.name,
-              stack: err.stack ? err.stack.split('\n').slice(0, 5) : [],
-            },
-          }));
-        } else {
-          this.log.error('');
-          this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
-          this.log.error(`Job: ${job.data.runs}` || this.name);
-          if (err.stack) {
-            this.log.error(err.stack.split('\n').slice(0, 5));
-          }
-          this.log.error(err);
-          this.log.error('------------------------------------------------------');
-          this.log.error('');
-        }
+        this._logJobFailure(job, jobError);
       }
 
-      if (job.data.runs && Array.isArray(job.data.runs)) {
-        return this._finishMultiJob(err, null, job);
-      }
-      return this._finishSingleJob(err, null, job);
+      if (job.type === 'relay') return this._finishRelayJob(jobError, null, job);
+      return this._finishSingleJob(jobError, null, job);
     };
 
     const preventStalling = () => {
@@ -214,8 +190,7 @@ export default class Queue extends EventEmitter {
     job.data = job.data.data || job.data;
 
     if (job.options.timeout) {
-      const msg = `Job ${job.id} timed out (${job.options.timeout}ms)`;
-      setTimeout(handleError.bind(null, Error(msg)), job.options.timeout);
+      setTimeout(handleError.bind(null, Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)), job.options.timeout);
     }
 
     if (job.options.noBind || this.options.noBind) {
@@ -226,112 +201,60 @@ export default class Queue extends EventEmitter {
   }
 
   /**
-   * Completes a multi job or continues to the next stage.
+   *
    * @param error
    * @param data
    * @param job
-   * @returns {Promise}
+   * @returns {{job: {id: *, worker_id: (*|String|string), status: string}, error: *, output: *}}
    * @private
    */
-  _finishMultiJob(error, data, job) {
-    delete this.jobs[job.id];
-
-    return new Promise((resolve, reject) => {
-      const status = error ? 'failed' : 'succeeded';
-
-      const multi = this.client.multi();
-      multi.lrem(this.toKey('active'), 0, job.id);
-      multi.srem(this.toKey('stalling'), job.id);
-
-      const event = {
-        job: {
-          id: job.id,
-          worker_id: this.core.id,
-          status,
-          ...job.data,
-        },
-        error,
-        output: data,
-      };
-
-      const currentJob = job.data.runs.shift();
-      const nextJob = job.data.runs[0];
-      let nextQueue = this.name;
-
-      // keep a record of the first job in this relay instance
-      // ssssh JSON ;p
-      if (!job.data.initialJob) {
-        job.data.initialJob = tryJSONParse(job.toData());
-      }
-
-      // keep a record of the first queue in this relay instance
-      if (!job.data.initialQueue) {
-        job.data.initialQueue = this.name;
-      }
-
-      if (status === 'failed') {
-        if (job.options.retries > 0) {
-          job.options.retries = job.options.retries - 1;
-          job.status = 'retrying';
-          multi.hset(this.toKey('jobs'), job.id, job.toData());
-          multi.lpush(this.toKey('waiting'), job.id);
-        } else {
-          job.status = 'failed';
-          multi.hdel(this.toKey('jobs'), job.id);
-          // TODO track failures and their data somewhere else for reviewing
-          // multi.hset(this.toKey('jobs'), job.id, job.toData());
-          // multi.sadd(this.toKey('failed'), job.id);
-        }
-      } else {
-        job.status = 'succeeded';
-        multi.hdel(this.toKey('jobs'), job.id);
-        // TODO track successes and their data somewhere else for reviewing
-        // multi.hset(this.toKey('jobs'), job.id, job.toData());
-        // multi.sadd(this.toKey('succeeded'), job.id);
-      }
-
-      // check if we need to relay to another job
-      if (!(job.data.runs.length === 0 || !!error)) {
-        if (isObject(nextJob)) {
-          nextQueue = nextJob.queue;
-          job.data.runs[0] = nextJob.runs;
-        } else if (job.data.initialQueue) {
-          nextQueue = job.data.initialQueue;
-        }
-
-        // add some debug data for the next job
-        // so it can tell where its call originated from
-        job.data.from_job = currentJob;
-        job.data.from_queue = this.name;
-        job.data.from_timestamp = getTimeStamp();
-        job.data.data = data;
-
-        return this.core.hooks.job.create(nextQueue, job.data).then(() => {
-          multi.exec(errMulti => {
-            if (errMulti) return reject(errMulti);
-            return resolve({ status, result: error || data });
-          });
-        });
-      }
-
-      // we've just finished the last job in the relay
-      if (event.error) {
-        if (job.data.initialJob.options.notifyFailure) {
-          this.core.pubsub.publish(job.data.initialJob.options.notifyFailure, event);
-        }
-      } else if (job.data.initialJob.options.notifySuccess) {
-        this.core.pubsub.publish(job.data.initialJob.options.notifySuccess, event);
-      }
-
-      return multi.exec(errMulti => {
-        if (errMulti) return reject(errMulti);
-        return resolve({ status, result: error || data });
-      });
-    });
+  _createJobEvent(error, data, job) {
+    return {
+      job: {
+        id: job.id,
+        worker_id: this.core.id,
+        status: error ? 'failed' : 'succeeded',
+        ...job.data,
+      },
+      error,
+      output: data,
+    };
   }
 
-  _setQueueRunningCount(value) {
-    return this.client.increx(this.toKey('running'), value, 180);
+  /**
+   *
+   * @param error
+   * @param data
+   * @param job
+   * @param multi
+   * @private
+   */
+  _updateJobStatus(error, data, job, multi) {
+    const status = error ? 'failed' : 'succeeded';
+
+    multi.lrem(this.toKey('active'), 0, job.id);
+    multi.srem(this.toKey('stalling'), job.id);
+
+    if (status === 'failed') {
+      if (job.options.retries > 0) {
+        job.options.retries = job.options.retries - 1;
+        job.status = 'retrying';
+        multi.hset(this.toKey('jobs'), job.id, job.toData());
+        multi.lpush(this.toKey('waiting'), job.id);
+      } else {
+        job.status = 'failed';
+        multi.hdel(this.toKey('jobs'), job.id);
+        // TODO track failures and their data somewhere else for reviewing
+        // multi.hset(this.toKey('jobs'), job.id, job.toData());
+        // multi.sadd(this.toKey('failed'), job.id);
+      }
+    } else {
+      job.status = 'succeeded';
+      multi.hdel(this.toKey('jobs'), job.id);
+      // TODO track successes and their data somewhere else for reviewing
+      // multi.hset(this.toKey('jobs'), job.id, job.toData());
+      // multi.sadd(this.toKey('succeeded'), job.id);
+    }
   }
 
   /**
@@ -342,51 +265,18 @@ export default class Queue extends EventEmitter {
    * @returns {Promise}
    */
   _finishSingleJob(error, data, job) {
-    delete this.jobs[job.id];
+    const multi = this.client.multi();
+    const status = error ? 'failed' : 'succeeded';
+    this._updateJobStatus(error, data, job, multi);
+
+    // emit success or failure event if we have listeners
+    if (error && job.options.notifyFailure) {
+      this.core.pubsub.publish(job.options.notifyFailure, this._createJobEvent(error, data, job));
+    } else if (job.options.notifySuccess) {
+      this.core.pubsub.publish(job.options.notifySuccess, this._createJobEvent(error, data, job));
+    }
 
     return new Promise((resolve, reject) => {
-      const status = error ? 'failed' : 'succeeded';
-      const multi = this.client.multi();
-
-      multi.lrem(this.toKey('active'), 0, job.id);
-      multi.srem(this.toKey('stalling'), job.id);
-
-      if (status === 'failed') {
-        if (job.options.retries > 0) {
-          job.options.retries = job.options.retries - 1;
-          job.status = 'retrying';
-          multi.hset(this.toKey('jobs'), job.id, job.toData());
-          multi.lpush(this.toKey('waiting'), job.id);
-        } else {
-          job.status = 'failed';
-          multi.hdel(this.toKey('jobs'), job.id);
-          // TODO track failures and their data somewhere else for reviewing
-          // multi.hset(this.toKey('jobs'), job.id, job.toData());
-          // multi.sadd(this.toKey('failed'), job.id);
-        }
-      } else {
-        job.status = 'succeeded';
-        multi.hdel(this.toKey('jobs'), job.id);
-        // TODO track successes and their data somewhere else for reviewing
-        // multi.hset(this.toKey('jobs'), job.id, job.toData());
-        // multi.sadd(this.toKey('succeeded'), job.id);
-      }
-
-      if (error && (job.options.notifySuccess || job.notifyFailure)) {
-        const event = {
-          job: {
-            id: job.id,
-            worker_id: this.core.id,
-            status,
-            ...job.data,
-          },
-          error,
-          output: data,
-        };
-        if (job.options.notifyFailure) this.core.pubsub.publish(job.options.notifyFailure, event);
-        if (job.options.notifySuccess) this.core.pubsub.publish(job.options.notifySuccess, event);
-      }
-
       multi.exec(errMulti => {
         if (errMulti) return reject(errMulti);
         return resolve({ status, result: error || data });
@@ -395,37 +285,139 @@ export default class Queue extends EventEmitter {
   }
 
   /**
+   * Completes a multi job or continues to the next stage.
+   * @param error
+   * @param data
+   * @param job
+   * @returns {Promise}
+   * @private
+   */
+  _finishRelayJob(error, data, job) {
+    let nextQueue = this.name;
+    const nextJob = job.data.runs[0];
+    const multi = this.client.multi();
+    const currentJob = job.data.runs.shift();
+    const status = error ? 'failed' : 'succeeded';
+
+    // keep a record of the first job in this relay instance
+    if (!job.data.initialJob) {
+      job.data.initialJob = tryJSONParse(job.toData());
+    }
+
+    // keep a record of the first queue in this relay instance
+    if (!job.data.initialQueue) {
+      job.data.initialQueue = this.name;
+    }
+
+    this._updateJobStatus(error, data, job, multi);
+
+    // check if we need to relay to another job
+    if (!(job.data.runs.length === 0 || !!error)) {
+      if (isObject(nextJob)) {
+        nextQueue = nextJob.queue;
+        job.data.runs[0] = nextJob.runs;
+      } else if (job.data.initialQueue) {
+        nextQueue = job.data.initialQueue;
+      }
+
+      // add some debug data for the next job
+      // so it can tell where the relay originated from
+      job.data.from_job = currentJob;
+      job.data.from_queue = this.name;
+      job.data.from_timestamp = getTimeStamp();
+      // relay resolved data
+      job.data.data = data;
+
+      return new Promise((resolve, reject) => {
+        return this.core.hooks.job.create(nextQueue, job.data).then(() => {
+          multi.exec(errMulti => {
+            if (errMulti) return reject(errMulti);
+            return resolve({ status, result: error || data });
+          });
+        });
+      });
+    }
+
+    // we've just finished the last job in the relay
+    // emit success or failure event if we have listeners
+    if (error && job.data.initialJob.options.notifyFailure) {
+      this.core.pubsub.publish(job.data.initialJob.options.notifyFailure, this._createJobEvent(error, data, job));
+    } else if (job.data.initialJob.options.notifySuccess) {
+      this.core.pubsub.publish(job.data.initialJob.options.notifySuccess, this._createJobEvent(error, data, job));
+    }
+
+    return new Promise((resolve, reject) => {
+      return multi.exec(errMulti => {
+        if (errMulti) return reject(errMulti);
+        return resolve({ status, result: error || data });
+      });
+    });
+  }
+
+  /**
+   *
+   * @private
+   */
+  _onLocalTickComplete = () => {
+    this.running--;
+    this.queued--;
+    if (!this.options.throttle) return setImmediate(this._queueTick);
+
+    return this.client.throttle(
+      this.toKey('throttle'),
+      this.options.throttle.limit,
+      this.options.throttle.seconds
+    ).then(throttle => {
+      const shouldThrottle = throttle[0] === 1;
+      if (!shouldThrottle) {
+        this.throttled = false;
+        return setImmediate(this._queueTick);
+      }
+
+      this.throttled = true;
+      const timeRemaining = (throttle[2] === 0 ? 1 : throttle[2]);
+      this.log.verbose(`'${this.name}' queue  reached it's throttle limit, resuming in ${timeRemaining} seconds.`);
+      return setTimeout(this._queueTick, timeRemaining * 1000);
+    }).catch(this._queueTick);
+  };
+
+  /**
+   *
+   * @param error
+   * @private
+   */
+  _onLocalTickError = (error) => {
+    this.queued--;
+    this.log.error(error);
+    setImmediate(this._queueTick);
+  };
+
+  _throttleQueue = () => {
+
+  };
+
+  /**
    *
    * @returns {*}
    * @private
    */
-  _jobTick = () => {
+  _queueTick = () => {
     if (this.paused || !this.options.enabled) {
       return void 0;
     }
-
     this.queued++;
+    return this
+      ._getNextJob()
+      .then(job => {
+        this.running++;
+        // queue more jobs if within limit
+        if ((this.running + this.queued) < this.options.concurrency) {
+          // concurrency is a little pointless right now if we're throttling jobs
+          if (!this.options.throttle) setImmediate(this._queueTick);
+        }
 
-    return this._getNextJob().then(job => {
-      this.running++;
-
-      if ((this.running + this.queued) < this.concurrency) {
-        setImmediate(this._jobTick);
-      }
-
-      return this._runJob(job).then(() => {
-        this.running--;
-        this.queued--;
-        setImmediate(this._jobTick);
-      }).catch(() => {
-        this.running--;
-        this.queued--;
-        setImmediate(this._jobTick);
-      });
-    }).catch(error => {
-      this.log.error(error);
-      setImmediate(this._jobTick);
-    });
+        return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
+      }).catch(this._onLocalTickError);
   };
 
   /**
@@ -433,25 +425,23 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _restartProcessing = () => {
-    this.clients.block.once('ready', this._jobTick);
+    this.clients.block.once('ready', this._queueTick);
   };
 
   /**
    * Start the queue.
-   * @param concurrency
    */
-  process(concurrency = 1) {
+  beginWorking() {
     if (this.started || !this.options.enabled) {
       this.log.info(`Queue ${this.name} is currently disabled.`);
       return void 0;
     }
 
-    this.started = true;
-    this.running = 0;
     this.queued = 0;
-    this.concurrency = concurrency;
+    this.running = 0;
+    this.started = true;
 
-    this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.concurrency}.`);
+    this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.options.concurrency}.`);
 
     this.clients.block.once('error', this._restartProcessing);
     this.clients.block.once('close', this._restartProcessing);
@@ -461,7 +451,7 @@ export default class Queue extends EventEmitter {
     }).catch(() => {
     });
 
-    return this._jobTick();
+    return this._queueTick();
   }
 
   /**
@@ -478,10 +468,7 @@ export default class Queue extends EventEmitter {
       getTimeStamp(),
       this.options.stallInterval
     ).then(() => {
-      if (!this.options.enabled || this.paused) {
-        return Promise.resolve();
-      }
-
+      if (!this.options.enabled || this.paused) return Promise.resolve();
       return Promise.delay(this.options.stallInterval).then(this.checkStalledJobs);
     });
   }

@@ -50,10 +50,15 @@ class Job {
     this.id = id;
     this.core = core;
     this.data = data;
-    this.status = 'created';
     this.options = options;
-    this.queueName = queueName;
+    this.status = 'created';
     this.subscriptions = [];
+    this.queueName = queueName;
+    this.type = data.runs && Array.isArray(data.runs) ? 'relay' : 'single';
+
+    // parent relay job timeout should cover all child job timeouts
+    if (this.type === 'relay') this.options.timeout = this.options.timeout * data.runs.length;
+
     if (isNew) {
       // this Proxy allows chaining methods while still keeping the
       // save() promise valid
@@ -72,8 +77,10 @@ class Job {
           return undefined;
         },
       });
+
       return this.proxy;
     }
+
     return this;
   }
 
@@ -180,32 +187,28 @@ class Job {
         );
       }
 
-      return this.core.pubsub.subscribeOnceOf(this.subscriptions, (message) => { // on message received
-        const channel = message.channel;
+      return this.core.pubsub.subscribeOnceOf(
+        this.subscriptions,
+        (message) => { // on message received
+          // remove the pubsub data
+          if (message.data) message = message.data;
 
-        // remove the pubsub data
-        if (message.data) {
-          message = message.data;
-        }
+          // if there's an error then assume failed.
+          if (message.error) return this.onFailureCallback(message);
 
-        // if there's an error then assume failed.
-        if (message.error) {
+          // is it from the success channel.
+          if (this.subscriptions[0] === message.channel) return this.onSuccessCallback(message);
+
           return this.onFailureCallback(message);
-        }
-
-        // is it from the success channel.
-        if (this.subscriptions[0] === channel) {
-          return this.onSuccessCallback(message);
-        }
-
-        return this.onFailureCallback(message);
-      }, this.options.timeout + 2000).then(() =>  // subscribed callback
+        },
+        this.options.timeout + 2000
+      ).then(() =>  // subscribed callback
         this._save()
       ).catch(error =>
         this.onFailureCallback({
           type: 'job',
           error: new Error('Error while subscribing to job events, however this job will still be queued - ' +
-            'you may be unable to receive onComplete / onFailure events for this job.'),
+            'you may be unable to receive onSuccess / onFailure events for this job.'),
           error_actual: error,
         })
       );
@@ -220,9 +223,7 @@ class Job {
    * @returns {Job}
    */
   retries(n) {
-    if (n < 0) {
-      throw Error('Retries cannot be negative');
-    }
+    if (n < 0) throw Error('Retries cannot be negative');
     this.options.retries = n - 1;
     return this.proxy;
   }
@@ -262,63 +263,13 @@ class Job {
   }
 
   /**
-   * Set how long this job can run before it times out.
+   * Set how long this job can remain running for before it times out.
    * @param ms
    * @returns {Job}
    */
   timeout(ms) {
     this.options.timeout = ms;
     return this.proxy;
-  }
-
-  /**
-   *
-   * @returns {Job.initialJob|*}
-   */
-  initialJob() {
-    return this._internalData.initialJob;
-  }
-
-  /**
-   *
-   * @returns {Job.initialQueue|*}
-   */
-  initialQueue() {
-    return this._internalData.initialQueue;
-  }
-
-  /**
-   * Remove this job from all sets.
-   * @param cb
-   */
-  remove(cb = noop) {
-    this.core.client.removejob(
-      this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
-      this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
-      this.id, cb);
-  }
-
-  /**
-   * Re-save this job for the purpose of retrying it.
-   * @param cb
-   */
-  retry(cb = noop) {
-    this.core.client.multi()
-        .srem(this._toQueueKey('failed'), this.id)
-        .lpush(this._toQueueKey('waiting'), this.id)
-        .exec(cb);
-  }
-
-  /**
-   * Callbacks true of false if this job exists in the specified set.
-   * @param set
-   * @param cb
-   */
-  isInSet(set, cb = noop) {
-    this.core.client.sismember(this._toQueueKey(set), this.id, (err, result) => {
-      if (err) return cb(err);
-      return cb(null, result === 1);
-    });
   }
 
   /**
@@ -337,3 +288,75 @@ class Job {
 }
 
 export default Job;
+
+// Experimental code below is TODO
+
+// /**
+//  *
+//  * @returns {Job.initialJob|*}
+//  */
+// initialJob() {
+//   return this._internalData.initialJob;
+// }
+//
+// /**
+//  *
+//  * @returns {Job.initialQueue|*}
+//  */
+// initialQueue() {
+//   return this._internalData.initialQueue;
+// }
+
+/**
+ *
+ * @param jobId
+ * @returns {Promise}
+ */
+// getJob(jobId) {
+//   return new Promise((resolve, reject) => {
+//     if (jobId in this.jobs) {
+//       // we have the job locally
+//       return resolve(this.jobs[jobId]);
+//     }
+//     // not local so gather from redis
+//     Job.fromId(this, jobId)
+//        .then(job => {
+//          this.jobs[jobId] = job;
+//          return resolve(job);
+//        }).catch(reject);
+//   });
+// }
+//
+// /**
+//  * Remove this job from all sets.
+//  * @param cb
+//  */
+// remove(cb = noop) {
+//   this.core.client.removejob(
+//     this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
+//     this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
+//     this.id, cb);
+// }
+//
+// /**
+//  * Re-save this job for the purpose of retrying it.
+//  * @param cb
+//  */
+// retry(cb = noop) {
+//   this.core.client.multi()
+//       .srem(this._toQueueKey('failed'), this.id)
+//       .lpush(this._toQueueKey('waiting'), this.id)
+//       .exec(cb);
+// }
+//
+// /**
+//  * Callbacks true of false if this job exists in the specified set.
+//  * @param set
+//  * @param cb
+//  */
+// isInSet(set, cb = noop) {
+//   this.core.client.sismember(this._toQueueKey(set), this.id, (err, result) => {
+//     if (err) return cb(err);
+//     return cb(null, result === 1);
+//   });
+// }
