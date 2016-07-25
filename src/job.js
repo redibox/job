@@ -50,9 +50,12 @@ class Job {
     this.id = id;
     this.core = core;
     this.data = data;
+    this._saved = false;
     this.options = options;
+    this._autoSaveRef = '';
     this.status = 'created';
     this.subscriptions = [];
+    this.ignoreProxy = false;
     this.queueName = queueName;
     this.type = data.runs && Array.isArray(data.runs) ? 'relay' : 'single';
 
@@ -69,7 +72,7 @@ class Job {
           }
 
           // haxxors
-          if (name === 'then') {
+          if (!target.ignoreProxy && name === 'then') {
             target.promise = target.save();
             return target.promise.then.bind(target.promise);
           }
@@ -81,6 +84,15 @@ class Job {
       return this.proxy;
     }
 
+    return this;
+  }
+
+	/**
+   * Returns job instance with no proxy
+   * @returns {Job}
+   */
+  withoutProxy() {
+    this.ignoreProxy = true;
     return this;
   }
 
@@ -167,7 +179,12 @@ class Job {
    * immediately for processing.
    * @returns {*}
    */
-  save() {
+  save(auto) {
+    if (!auto && this._saved) return Promise.resolve();
+
+    // lock it so autoSave doesn't pick it up but only deletes it from queue
+    this._saved = true;
+
     this.id = `${this.queueName}-${(this.options.unique ? sha1sum(this.data) : cuid())}`;
 
     if (this.options.notifySuccess) {
@@ -191,17 +208,17 @@ class Job {
         this.subscriptions,
         (message) => { // on message received
           // remove the pubsub data
-          if (message.data) message = message.data;
+          if (!message.data) message.data = {};
 
           // if there's an error then assume failed.
-          if (message.error) return this.onFailureCallback(message);
+          if (message.data.error) return this.onFailureCallback(message.data);
 
           // is it from the success channel.
-          if (this.subscriptions[0] === message.channel) return this.onSuccessCallback(message);
+          if (this.subscriptions[0] === message.channel) return this.onSuccessCallback(message.data);
 
-          return this.onFailureCallback(message);
+          return this.onFailureCallback(message.data);
         },
-        this.options.timeout + 2000
+        this.options.timeout + 1500
       ).then(() =>  // subscribed callback
         this._save()
       ).catch(error =>

@@ -19,10 +19,10 @@ const config = {
       {
         name: 'test2',
         concurrency: 5,
-        // throttle: {
-        //   limit: 2,
-        //   seconds: 10,
-        // },
+        throttle: {
+          limit: 250,
+          seconds: 10,
+        },
       },
       { name: 'test', concurrency: 10 },
     ],
@@ -90,14 +90,664 @@ global.RediBox = new Redibox(config, () => {
   global.RediBoxCluster = new Redibox(clusterConfig, () => {
     global.HookCluster = global.RediBoxCluster.hooks[global.HOOK_NAME];
     tester.then(() => {
-      return Hook.create('test2', {
+      Hook
+        .create('test2', {
+          runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+          data: {
+            foo: 'bar',
+          },
+        })
+        .onSuccess((result) => {
+          console.log('s'.repeat(80));
+          console.dir(result);
+          console.log('s'.repeat(80));
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+          Hook.create('test2', {
+            runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+            data: {
+              foo: 'barz',
+            },
+          });
+        })
+        .onFailure((result) => {
+          console.log('e'.repeat(80));
+          console.error(result.error);
+          console.log('e'.repeat(80));
+        });
+
+      Hook.create('test2', {
         runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
         data: {
-          foo: 'bar',
+          foo: 'barz',
         },
-      }).timeout(2000).unique(true).onSuccess((result) => {
-        console.dir(result)
       });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+
+      Hook.create('test2', {
+        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
+        data: {
+          foo: 'barz',
+        },
+      });
+
     });
   });
 });
