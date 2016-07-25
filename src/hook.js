@@ -70,7 +70,7 @@ export default class JobHook extends BaseHook {
   autoSave() {
     const jobsToSave = [];
     const refs = Object.keys(this.autoCreateQueue);
-
+    this.autoSaveImmediate = null;
     for (let i = 0, iLen = refs.length; i < iLen; i++) {
       const ref = refs[i];
       const job = this.autoCreateQueue[ref];
