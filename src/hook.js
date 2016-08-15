@@ -123,16 +123,18 @@ export default class JobHook extends BaseHook {
   cleanupAutoSave(jobsToRemove, possibleError) {
     if (possibleError) this.log.error(possibleError);
     this.log.verbose(`Removing ${jobsToRemove.length} saved jobs from the auto-save queue.`);
-    for (let i = 0, iLen = jobsToRemove.length; i < iLen; i++) {
-      // trying to force garbage collection here
-      this.autoCreateQueue[jobsToRemove[i]] = null;
-      delete this.autoCreateQueue[jobsToRemove[i]];
-    }
+    if (this.autoCreateQueue) {
+      for (let i = 0, iLen = jobsToRemove.length; i < iLen; i++) {
+        // trying to force garbage collection here
+        this.autoCreateQueue[jobsToRemove[i]] = null;
+        delete this.autoCreateQueue[jobsToRemove[i]];
+      }
 
-    if (!Object.keys(this.autoCreateQueue).length) {
-      // trying to force garbage collection here
-      this.autoCreateQueue = null;
-      delete this.autoCreateQueue;
+      if (!Object.keys(this.autoCreateQueue).length) {
+        // trying to force garbage collection here
+        this.autoCreateQueue = null;
+        delete this.autoCreateQueue;
+      }
     }
 
     return void 0;
