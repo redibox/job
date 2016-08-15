@@ -52,7 +52,6 @@ class Job {
     this.data = data;
     this._saved = false;
     this.options = options;
-    this._autoSaveRef = '';
     this.status = 'created';
     this.subscriptions = [];
     this.ignoreProxy = false;
@@ -87,7 +86,7 @@ class Job {
     return this;
   }
 
-	/**
+  /**
    * Returns job instance with no proxy
    * @returns {Job}
    */
@@ -116,10 +115,10 @@ class Job {
    * @param data
    * @returns {Job | null}
    */
-  static fromData(queue, id, data) {
-    const obj = tryJSONParse(data);
+  static fromData(...args) {
+    const obj = tryJSONParse(args[2]);
     if (!obj) return null;
-    const job = new Job(queue.core, id, obj.data, obj.options, queue.name);
+    const job = new Job(args[0].core, args[1], obj.data, obj.options, args[0].name);
     job.status = obj.data.status;
     return job;
   }
@@ -218,7 +217,7 @@ class Job {
 
           return this.onFailureCallback(message.data);
         },
-        this.options.timeout + 1500
+        this.options.timeout + 1000
       ).then(() =>  // subscribed callback
         this._save()
       ).catch(error =>
