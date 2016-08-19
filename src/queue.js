@@ -193,11 +193,15 @@ export default class Queue extends EventEmitter {
       setTimeout(handleError.bind(null, Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)), job.options.timeout);
     }
 
-    if (job.options.noBind || this.options.noBind) {
-      return handler(job).then(handleOK, handleError).catch(handleError);
-    }
+    try {
+      if (job.options.noBind || this.options.noBind) {
+        return handler(job).then(handleOK, handleError).catch(handleError);
+      }
 
-    return handler.bind(job, job)(job).then(handleOK, handleError).catch(handleError);
+      return handler.bind(job, job)(job).then(handleOK, handleError).catch(handleError);
+    } catch (e) {
+      return handleError(e);
+    }
   }
 
   /**
