@@ -121,6 +121,7 @@ export default class Queue extends EventEmitter {
 
     let preventStallingTimeout;
     let handled = false;
+    let promiseOrRes;
 
     // Handle an "OK" response from the promise
     const handleOK = data => {
@@ -195,13 +196,19 @@ export default class Queue extends EventEmitter {
 
     try {
       if (job.options.noBind || this.options.noBind) {
-        return handler(job).then(handleOK, handleError).catch(handleError);
+        promiseOrRes = handler(job);
+      } else {
+        promiseOrRes = handler.bind(job, job)(job);
       }
-
-      return handler.bind(job, job)(job).then(handleOK, handleError).catch(handleError);
     } catch (e) {
       return handleError(e);
     }
+
+    if (promiseOrRes.then && typeof promiseOrRes.then === 'function') {
+      return promiseOrRes.then(handleOK, handleError).catch(handleError);
+    }
+
+    return handleOK(promiseOrRes);
   }
 
   /**
