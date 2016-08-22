@@ -72,6 +72,7 @@ const clusterConfig = {
 
 global.fooBar = function () {
   console.log('FOO BAR');
+  console.log(foborh);
   return Promise.resolve({ hello: 123 });
 };
 
