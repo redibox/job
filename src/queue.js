@@ -4,6 +4,11 @@ import defaults from './defaults';
 import EventEmitter from 'eventemitter3';
 import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
 
+/**
+ * TODO move to helpers
+ * @param errorStack
+ * @returns {Array}
+ */
 function trimStack(errorStack) {
   const oldStack = errorStack.split('\n');
   const stack = [];
