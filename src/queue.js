@@ -7,7 +7,7 @@ import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
 function trimStack(errorStack) {
   const oldStack = errorStack.split('\n');
   const stack = [];
-  for (let i = 0, iLen = oldStack.length || stack.length > 9; i < iLen; i++) {
+  for (let i = 0, iLen = oldStack.length || stack.length > 19; i < iLen; i++) {
     const row = oldStack[i];
 
     // include private modules
