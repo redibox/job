@@ -92,7 +92,7 @@ export default class Queue extends EventEmitter {
         data: {
           runs: job.data.runs,
           queue: this.name,
-          stack: jobError.stack ? jobError.stack.split('\n').slice(0, 5) : [],
+          stack: jobError.stack ? jobError.stack.split('\n').slice(0, 10) : [],
         },
       }));
     } else {
@@ -100,7 +100,7 @@ export default class Queue extends EventEmitter {
       this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
       this.log.error(`Job: ${job.data.runs}` || this.name);
       if (jobError.stack) {
-        this.log.error(jobError.stack.split('\n').slice(0, 5));
+        this.log.error(jobError.stack.split('\n').slice(0, 10));
       }
       this.log.error(jobError);
       this.log.error('------------------------------------------------------');
@@ -157,10 +157,7 @@ export default class Queue extends EventEmitter {
         job.data = job._internalData;
       }
 
-      // only log the error if no notifyFailure pubsub set
-      if ((!job.data.initialJob || !job.data.initialJob.options.notifyFailure) && !Array.isArray(job.data.runs)) {
-        this._logJobFailure(job, jobError);
-      }
+      this._logJobFailure(job, jobError);
 
       if (job.type === 'relay') return this._finishRelayJob(jobError, null, job);
       return this._finishSingleJob(jobError, null, job);
@@ -403,10 +400,6 @@ export default class Queue extends EventEmitter {
     setImmediate(this._queueTick);
   };
 
-  _throttleQueue = () => {
-
-  };
-
   /**
    *
    * @returns {*}
@@ -470,7 +463,7 @@ export default class Queue extends EventEmitter {
    * @returns {*}
    */
   checkStalledJobs() {
-    this.log.verbose('checkStalledJobs');
+    this.log.verbose(`${this.name}: checkStalledJobs`);
     return this.client.checkstalledjobs(
       this.toKey('stallTime'),
       this.toKey('stalling'),
@@ -480,7 +473,7 @@ export default class Queue extends EventEmitter {
       this.options.stallInterval
     ).then(() => {
       if (!this.options.enabled || this.paused) return Promise.resolve();
-      return Promise.delay(this.options.stallInterval).then(this.checkStalledJobs);
+      return Promise.delay(this.options.stallInterval).then(::this.checkStalledJobs);
     });
   }
 
