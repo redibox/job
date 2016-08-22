@@ -4,6 +4,36 @@ import defaults from './defaults';
 import EventEmitter from 'eventemitter3';
 import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
 
+function trimStack(errorStack) {
+  const oldStack = errorStack.split('\n');
+  const stack = [];
+  for (let i = 0, iLen = oldStack.length || stack.length > 9; i < iLen; i++) {
+    const row = oldStack[i];
+
+    // include private modules
+    if (row.includes('@')) {
+      stack.push(row);
+      continue;
+    }
+
+    // exclude job module
+    if (row.includes('redibox-hook-job') || row.includes('redibox/job/lib')) continue;
+
+    // exclude bluebird
+    if (row.includes('bluebird')) continue;
+
+    // exclude waterline
+    if (row.includes('waterline/lib')) continue;
+
+    // exclude timers.js
+    if (row.includes('timers.js:')) continue;
+
+    stack.push(row);
+  }
+
+  return stack;
+}
+
 export default class Queue extends EventEmitter {
 
   /**
@@ -84,6 +114,8 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _logJobFailure(job, jobError) {
+    const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
+    const stack = trimStack(error.stack);
     if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
       /* eslint no-console: 0 */
       console.log(JSON.stringify({
@@ -92,17 +124,15 @@ export default class Queue extends EventEmitter {
         data: {
           runs: job.data.runs,
           queue: this.name,
-          stack: jobError.stack ? jobError.stack.split('\n').slice(0, 10) : [],
+          stack,
         },
       }));
     } else {
       this.log.error('');
       this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
       this.log.error(`Job: ${job.data.runs}` || this.name);
-      if (jobError.stack) {
-        this.log.error(jobError.stack.split('\n').slice(0, 10));
-      }
-      this.log.error(jobError);
+      error.stack = stack.join('\n');
+      this.log.error(error);
       this.log.error('------------------------------------------------------');
       this.log.error('');
     }
