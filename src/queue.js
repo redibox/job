@@ -30,6 +30,9 @@ function trimStack(errorStack) {
     // exclude waterline
     if (row.includes('waterline/lib')) continue;
 
+    // exclude waterline
+    if (row.includes('async/lib')) continue;
+
     // exclude timers.js
     if (row.includes('timers.js:')) continue;
 
@@ -121,14 +124,17 @@ export default class Queue extends EventEmitter {
   _logJobFailure(job, jobError) {
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
+
     if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
       /* eslint no-console: 0 */
+      const jobData = JSON.stringify(job.data.data);
       console.log(JSON.stringify({
         level: 'error',
         type: 'redibox_job_failure',
-        data: {
+        job: {
           runs: job.data.runs,
           queue: this.name,
+          data: jobData.length > 4000 ? '<! job data too large to display !>' : job.data.data,
           stack,
         },
       }));
