@@ -303,6 +303,21 @@ export default class Queue extends EventEmitter {
       // TODO track successes and their data somewhere else for reviewing
       // multi.hset(this.toKey('jobs'), job.id, job.toData());
       // multi.sadd(this.toKey('succeeded'), job.id);
+      if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
+        /* eslint no-console: 0 */
+        const jobData = JSON.stringify(job.data.data);
+        console.log(JSON.stringify({
+          level: 'verbose',
+          type: 'redibox_job_completed',
+          job: {
+            id: job.id,
+            runs: job.data.runs,
+            queue: this.name,
+            status: job.status,
+            data: jobData.length > 4000 ? '<! job data too large to display !>' : job.data.data,
+          },
+        }));
+      }
     }
   }
 

@@ -165,6 +165,23 @@ class Job {
           this.status = 'duplicate';
           return Promise.reject(new Error(`ERR_DUPLICATE: Job ${this.id} already exists, save has been aborted.`));
         }
+
+        if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
+          /* eslint no-console: 0 */
+          const jobData = JSON.stringify(this.data.data);
+          console.log(JSON.stringify({
+            level: 'verbose',
+            type: 'redibox_job_created',
+            job: {
+              id: this.id,
+              runs: this.data.runs,
+              queue: this.queueName,
+              status: 'pending',
+              data: jobData.length > 4000 ? '<! job data too large to display !>' : this.data.data,
+            },
+          }));
+        }
+
         this.core.log.verbose(`Saved job for ${this.queueName}`);
         this.id = id;
         this.status = 'saved';
