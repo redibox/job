@@ -132,6 +132,7 @@ export default class Queue extends EventEmitter {
         level: 'error',
         type: 'redibox_job_failure',
         job: {
+          id: job.id.toString ? job.id.toString() : job.id,
           runs: job.data.runs,
           queue: this.name,
           data: jobData.length > 4000 ? '<! job data too large to display !>' : job.data.data,
@@ -310,7 +311,7 @@ export default class Queue extends EventEmitter {
           level: 'verbose',
           type: 'redibox_job_completed',
           job: {
-            id: job.id,
+            id: job.id.toString ? job.id.toString() : job.id,
             runs: job.data.runs,
             queue: this.name,
             status: job.status,

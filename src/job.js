@@ -173,7 +173,7 @@ class Job {
             level: 'verbose',
             type: 'redibox_job_created',
             job: {
-              id: this.id,
+              id: this.id.toString ? this.id.toString() : this.id,
               runs: this.data.runs,
               queue: this.queueName,
               status: 'pending',
