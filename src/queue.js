@@ -127,7 +127,7 @@ export default class Queue extends EventEmitter {
 
     if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
       /* eslint no-console: 0 */
-      const jobData = JSON.stringify(job.data.data);
+      const jobData = JSON.stringify(job.data.data || {});
       console.log(JSON.stringify({
         level: 'error',
         type: 'redibox_job_failure',
@@ -306,7 +306,7 @@ export default class Queue extends EventEmitter {
       // multi.sadd(this.toKey('succeeded'), job.id);
       if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
         /* eslint no-console: 0 */
-        const jobData = JSON.stringify(job.data.data);
+        const jobData = JSON.stringify(job.data.data || {});
         console.log(JSON.stringify({
           level: 'verbose',
           type: 'redibox_job_completed',
