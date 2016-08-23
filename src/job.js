@@ -168,7 +168,7 @@ class Job {
 
         if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
           /* eslint no-console: 0 */
-          const jobData = JSON.stringify(this.data.data);
+          const jobData = JSON.stringify(this.data.data || {});
           console.log(JSON.stringify({
             level: 'verbose',
             type: 'redibox_job_created',
