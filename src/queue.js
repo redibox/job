@@ -243,7 +243,7 @@ export default class Queue extends EventEmitter {
       return handleError(e);
     }
 
-    if (promiseOrRes.then && typeof promiseOrRes.then === 'function') {
+    if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
       return promiseOrRes.then(handleOK, handleError).catch(handleError);
     }
 
