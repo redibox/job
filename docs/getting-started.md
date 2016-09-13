@@ -24,6 +24,14 @@ The namespace to store jobs under on Redis. This does not likely need to be chan
    - default: `[]`
 An array of queue objects. See the [queue documentation](https://github.com/redibox/job/docs/queues.md) for examples.
 
+```javascript
+{
+  job: {
+    enabled: true,
+  },
+}
+```
+
 ### Working with multiple environments
 
 A common use case for working with Jobs is when your application has multiple environments. For example your product
