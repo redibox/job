@@ -14,7 +14,7 @@ Within your RediBox config, create a `job` key which returns an object. This obj
 - **stallInterval** [Number]
   - default: `5000`
 How often (in miliseconds) stalled jobs will be checked for.
-E.g. A job being stalled can occur a server running job(s) crashes. When the interval hits, the job will be ran by another working server.
+E.g. A job being stalled can occur when a server running job(s) crashes. When the interval hits, the job will be ran by another working server.
 
 - **keyPrefix** [String]
   - default: `job`
