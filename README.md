@@ -35,6 +35,7 @@ Job.create('my-queue', {
 
 ### Documentation
 
-- [Getting Started](https://github.com/redibox/job/docs/getting-started.md)
-- [Configuring the hook](https://github.com/redibox/job/docs/configuration.md)
-- [Queues](https://github.com/redibox/job/docs/queues.md)
+- [Getting Started]https://github.com/redibox/job/blob/master/docs/getting-started.md)
+- [Configuring the hook](https://github.com/redibox/job/blob/master/docs/configuration.md)
+- [Queues](https://github.com/redibox/job/blob/master/docs/queues.md)
+- [Best Practices](https://github.com/redibox/job/blob/master/docs/best-practices.md)
