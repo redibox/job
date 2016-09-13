@@ -84,19 +84,19 @@ export default class Queue extends EventEmitter {
    */
   checkHealth() {
     return this
-      .client.multi()
-      .llen(this.toKey('waiting'))
-      .llen(this.toKey('active'))
-      .scard(this.toKey('succeeded'))
-      .scard(this.toKey('failed'))
-      .then(results => { /* eslint arrow-body-style: 0 */
-        return {
-          waiting: results[0][1],
-          active: results[1][1],
-          succeeded: results[2][1],
-          failed: results[3][1],
-        };
-      });
+    .client.multi()
+    .llen(this.toKey('waiting'))
+    .llen(this.toKey('active'))
+    .scard(this.toKey('succeeded'))
+    .scard(this.toKey('failed'))
+    .then(results => { /* eslint arrow-body-style: 0 */
+      return {
+        waiting: results[0][1],
+        active: results[1][1],
+        succeeded: results[2][1],
+        failed: results[3][1],
+      };
+    });
   }
 
   /**
@@ -468,17 +468,17 @@ export default class Queue extends EventEmitter {
     }
     this.queued++;
     return this
-      ._getNextJob()
-      .then(job => {
-        this.running++;
-        // queue more jobs if within limit
-        if ((this.running + this.queued) < this.options.concurrency) {
-          // concurrency is a little pointless right now if we're throttling jobs
-          if (!this.options.throttle) setImmediate(this._queueTick);
-        }
+    ._getNextJob()
+    .then(job => {
+      this.running++;
+      // queue more jobs if within limit
+      if ((this.running + this.queued) < this.options.concurrency) {
+        // concurrency is a little pointless right now if we're throttling jobs
+        if (!this.options.throttle) setImmediate(this._queueTick);
+      }
 
-        return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
-      }).catch(this._onLocalTickError);
+      return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
+    }).catch(this._onLocalTickError);
   };
 
   /**
