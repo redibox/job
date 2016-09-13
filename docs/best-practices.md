@@ -47,8 +47,6 @@ Breaking this job down into multiple jobs would be a much better solution:
 
 ```javascript
 // Smaller jobs to update users
-import each from 'async/each';
-
 export default function() {
   const data = require('../my-massive-dataset.json');
   
@@ -92,6 +90,7 @@ export default function() {
 queue. If a user query fails we can also trap the errors for the specific user.
 3. If a single job fails, other jobs won't be effected.
 4. We can add more servers to the environment to power through the jobs quicker.
+5. We've removed the need to use an async library.
 
 ### Queues
 
