@@ -4,9 +4,9 @@ The RediBox Job hook allows code to be run & distributed across many servers, wh
 
 ### Installation
 
-First ensure you have [RediBox](https://github.com/redibox/core) install.
+First ensure you have [RediBox](https://github.com/redibox/core) installed.
 
-Install Memset via npm: 
+Install Job via npm: 
 
 `npm install redibox-hook-job --save`
 
