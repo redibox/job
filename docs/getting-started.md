@@ -6,21 +6,21 @@ Once the hook has been installed, the next step is to configure the server/envir
 
 Within your RediBox config, create a `job` key which returns an object. This object then contains configuration options:
 
-- enabled [Boolean]
+- **enabled** [Boolean]
   - default: `true`
   - `true`: The server will act as a consumer and provider of jobs.
   - `false`: The server can only provide/create jobs, not run them.
   
-- stallInterval [Number]
+- **stallInterval** [Number]
   - default: `5000`
 How often (in miliseconds) stalled jobs will be checked for.
 E.g. A job being stalled can occur a server running job(s) crashes. When the interval hits, the job will be ran by another working server.
 
-- keyPrefix [String]
+- **keyPrefix** [String]
   - default: `job`
 The namespace to store jobs under on Redis. This does not likely need to be changed.
 
-- queues [Array]
+- **queues** [Array]
    - default: `[]`
 An array of queue objects. See the [queue documentation](https://github.com/redibox/job/docs/queues.md) for examples.
 
