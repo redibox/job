@@ -40,7 +40,7 @@ are still able to stop these processing more jobs once a `limit` has been hit du
 
 With the above in mind, a full example might look like:
 
-```
+```javascript
 {
   job: {
     enabled: true,
