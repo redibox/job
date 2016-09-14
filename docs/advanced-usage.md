@@ -4,7 +4,7 @@
 
 For simplicity reasons, previous examples have mostly shown the functions jobs execute as inline, e.g:
 
-```
+```javascript
 RediBox.hooks.job.create('queue', {
   runs: function(job) {
     console.log('Job running');
@@ -19,14 +19,14 @@ it'll attempt to execute it, assuming it's a global function.
 
 This allows for much cleaner code, e.g:
 
-```
+```javascript
 // firstJob.js
 RediBox.hooks.job.create('queue', {
   runs: 'sails.hooks.api.request',
 });
 ```
 
-```
+```javascript
 // request.js
 export default function() {
   console.log(this.data);
@@ -44,7 +44,7 @@ Handling errors from jobs is very simple, and can be handled inside promises or 
 
 Lets assume we're using an ORM which can perform database queries and each query returns a promise. We can simply return the promise and the job will `catch` any errors thrown from the promise:
 
-```
+```javascript
 export default function() {
   return Person.find();
 }
@@ -62,7 +62,7 @@ export default function() {
 
 If your current job doesn't require or use promises, simply throw an error in-line which will also be handled:
 
-```
+```javascript
 export default function() {
   const { person } = this.data;
   
@@ -82,7 +82,7 @@ The jobs which are chained simply need to return a promise resolve, optionally c
 
 An example:
 
-```
+```javascript
 Redibox.hooks.job.create('queue', {
   runs: [
     'global.generic.findPerson',
@@ -99,7 +99,7 @@ Redibox.hooks.job.create('queue', {
 
 First we can pass the data into the `findPerson` global function. If it does not find a person or the query data is missing we can stop the chain of jobs in place:
 
-```
+```javascript
 // findPerson.js
 export default function() {
   const { query } = this.data;
@@ -149,7 +149,7 @@ A job can also be created with promises. The job will only be created once the p
 
 Various ways of using and executing the jobs can be carried out this way
 
-```
+```javascript
 export default function() {
   Person
     .find({
@@ -174,7 +174,7 @@ export default function() {
 
 > Since a job can also return a promise, the job can also just return the job creation, and any creation errors will be handled.
 
-```
+```javascript
 export default function() {
   const promises = [];
 
