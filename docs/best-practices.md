@@ -65,8 +65,7 @@ export default function() {
   return Promise.resolve();
 }
 
-// updateUser.js
-export default function() {
+export function updateUser() {
   return User
     .find({ name: this.data.name })
     .then(user => {
