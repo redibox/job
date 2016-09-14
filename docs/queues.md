@@ -37,6 +37,31 @@ are still able to stop these processing more jobs once a `limit` has been hit du
     The interval of when the limit of jobs is reset.
     
 
+#### Example
+
+With the above in mind, a full example might look like:
+
+```
+{
+  job: {
+    enabled: true,
+    queues: [{
+      name: 'internal-data-processing',
+      concurrency: 15,
+    }, {
+      name: 'external-api',
+      concurrency: 1,
+      throttle: {
+        limit: 60,
+        seconds: 10,
+      },
+    }],
+  },
+}
+```
+
+The above example would mean external api jobs would run one at a time, at a limit of 60 every 10 seconds.
+
 #### Restrictions
 
 There are no limits to how many queues can be created, however from a technical point of view, each queue creates its own
