@@ -22,7 +22,6 @@ Concurrency is the amount of jobs **a single server** is able to process at any 
 with a concurrency of 1 will mean only ever 2 jobs from the queue can be processed at any one time. The below gif shows an 
 example of 2 servers, with a concurrency of 1:
 
-Inline-style: 
 ![Worker vs Jobs](https://camo.githubusercontent.com/6bbd36f4cf5b35a0f11a96dcd2e97711ffc2fb37/68747470733a2f2f662e636c6f75642e6769746875622e636f6d2f6173736574732f313637363837312f36383130382f62626330636662302d356632392d313165322d393734662d3333393763363464633835382e676966 "Worker vs Jobs")
 
 - **throttle** [Object]
