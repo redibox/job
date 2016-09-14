@@ -3,6 +3,8 @@
 A queue is an individual channel which jobs can be assigned to. Each queue can be configured to specifically control the
 amount of jobs to be processed at any one time and/or to throttle the amount of jobs allowed to be processed over a set timeframe.
 
+Check out [Best Practices](https://github.com/redibox/job/blob/master/docs/best-practices.md#queues) for queues.
+
 ### Setup
 
 As mentioned in the [Getting Started](https://github.com/redibox/job/blob/master/docs/getting-started.md) guide, the config 
