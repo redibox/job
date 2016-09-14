@@ -137,7 +137,7 @@ All other examples have demonstrated a `Job` being created as a syncronous task.
 #### Synchronous
 
 Imagine we've got 200 jobs being created in a single, synchronous loop within our code. Creating a job 200 times in 
-this way could potenially slow down the overall loop speed. To help solve this issue, at the end of the [Node event tick](https://github.com/nodejs/node/blob/master/doc/topics/the-event-loop-timers-and-nexttick.md) (once all synchronous code in the current job has completed), the created of the jobs is performed. This ensures the actual job logic is not 
+this way could potenially slow down the overall loop speed. To help solve this issue, at the end of the [Node event tick](https://github.com/nodejs/node/blob/master/doc/topics/the-event-loop-timers-and-nexttick.md) (once all synchronous code in the current job has completed), the creation of the jobs is performed. This ensures the actual job logic is not 
 effected by the job creation.
 
 The jobs are also created in batches of 100 at a time.
