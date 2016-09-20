@@ -14,9 +14,7 @@ Install Job via npm:
 
 ```javascript
 RediBox.hooks.job.create('my-queue', {
-  runs: function(job) {
-    console.log('The value of foo is ' + job.data.foo);
-  },
+  runs: 'sails.hooks.myhook.runJobFoo', // dot notated path to a globally accessible function
   data: {
     foo: 'bar',
   }
@@ -24,9 +22,7 @@ RediBox.hooks.job.create('my-queue', {
 
 // With Sails hook
 Job.create('my-queue', {
-  runs: function(job) {
-    console.log('The value of foo is ' + job.data.foo);
-  },
+  runs: 'sails.hooks.myhook.runJobBar', // dot notated path to a globally accessible function
   data: {
     foo: 'bar',
   }
