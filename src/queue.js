@@ -63,7 +63,6 @@ export default class Queue extends EventEmitter {
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this).then(() => {
       this.log.verbose(`Blocking client for queue '${this.name}' is ready. Starting queue processor.`);
-      this.beginWorking();
     });
   }
 

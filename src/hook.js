@@ -44,6 +44,13 @@ export default class JobHook extends BaseHook {
       this.queueCreate(queue);
     }
 
+    this.on('core:ready', () => {
+      for (let i = 0, len = this.options.queues.length; i < len; i++) {
+        const queue = this.options.queues[i];
+        this.queues[queue.name].beginWorking();
+      }
+    });
+
     return Promise.resolve();
   }
 
@@ -96,23 +103,23 @@ export default class JobHook extends BaseHook {
 
     if (jobsToSave.length === 1) {
       return this.autoCreateQueue[jobsToSave[0]]
-        .withoutProxy()
-        .save(true)
-        .then(() => this.cleanupAutoSave.call(this, jobsToSave))
-        .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
+      .withoutProxy()
+      .save(true)
+      .then(() => this.cleanupAutoSave.call(this, jobsToSave))
+      .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
     }
 
     /* eslint no-confusing-arrow: 0 */
     return Promise
-      .map(
-        jobsToSave,
-        ref => this.autoCreateQueue && this.autoCreateQueue[ref] ?
-          this.autoCreateQueue[ref].withoutProxy().save(true) :
-          Promise.resolve(),
-        { concurrency: 25 }
-      )
-      .then(() => this.cleanupAutoSave.call(this, jobsToSave))
-      .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
+    .map(
+      jobsToSave,
+      ref => this.autoCreateQueue && this.autoCreateQueue[ref] ?
+        this.autoCreateQueue[ref].withoutProxy().save(true) :
+        Promise.resolve(),
+      { concurrency: 25 }
+    )
+    .then(() => this.cleanupAutoSave.call(this, jobsToSave))
+    .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
   }
 
   /**
