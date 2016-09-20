@@ -12,7 +12,7 @@ Install Job via npm:
 
 #### Usage
 
-```
+```javascript
 RediBox.hooks.job.create('my-queue', {
   runs: function(job) {
     console.log('The value of foo is ' + job.data.foo);
