@@ -50,7 +50,7 @@ export default class JobHook extends BaseHook {
           const queue = this.options.queues[i];
           this.queues[queue.name].beginWorking();
         }
-      }, 250);
+      }, this.options.startupDelay);
     });
 
     return Promise.resolve();

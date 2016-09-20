@@ -2,9 +2,10 @@
  Default Configuration
  */
 export default {
-  enabled: true,
   queues: [],
-  stallInterval: 5000,
+  enabled: true,
   keyPrefix: 'job',
+  startupDelay: 750,
+  stallInterval: 5000,
 };
 
