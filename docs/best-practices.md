@@ -6,8 +6,8 @@ With a clustered server environment with high queue concurrency, the speed in wh
 will be much quicker if the task is broken down into many smaller jobs, rather than one large job. Memory/CPU usage will be kept lower
 and error trapping will be much more specific to a single job for easier debugging.
 
-**Example**: We've got a very large set of data which a user has uploaded which needs to be processed. The data needs to be interated over, 
-manipulated, internal database calls need to be made using the data and finally data needs to be saved.
+**Example**: We've got a very large set of data which a user has uploaded which needs to be processed. The data needs to be iterrated over, 
+manipulated, internal database calls need to be made and finally the data needs to be saved.
 
 We could handle this very easily in a express request to our api. However this could take a very long time and potentially delay other user requests coming into our api. Consider the below example:
 
