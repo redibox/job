@@ -6,20 +6,21 @@ With a clustered server environment with high queue concurrency, the speed in wh
 will be much quicker if task is broken down into many smaller jobs, rather than one large job. Memory/CPU usage will be kept lower
 and error trapping will be much more specific to a single job for easier debugging.
 
-**Example**: We've got a very large set of data which needs to be processed. The data needs to be looped over, 
+**Example**: We've got a very large set of data which a user has uploaded which needs to be processed. The data needs to be interated over, 
 manipulated, internal database calls need to be made using the data and finally data needs to be saved.
 
-A single job could handle this very easily. However we'd need to make use of Node.JS's async compatibility and 
-the code would become very messy - lots of nested loops, variables etc.
+We could handle this very easily in a express request to our api. However this could take a very long time and potentially delay other user requests coming into our api. Consider the below example:
 
 ```javascript
-// Massive job which finds and updates users
+// your api
 import each from 'async/each';
 
-export default function() {
-  const data = require('../my-massive-dataset.json');
+// some request controller
+export default function(req, res) {
+  // wherever the users file has been uploaded to
+  const arrayData = require('../users-massive-dataset.json');
   
-  return each(data, function(item, done) {
+  each(arrayData, function(item, done) {
     return User
       .find({ name: item.name })
       .then(user => {
@@ -28,43 +29,75 @@ export default function() {
       });
   }, function(error) {
     if (error) {
-      return Promise.reject(error);
+      return res.serverError(error);
     }
     
-    return Promise.resolve();
+    return res.ok({ msg: 'Sorry i took a long time, but all done!' });
   });
 }
 
 ```
 
-There's two problems here:
+There's several problems here:
 
-1. The job would consume lots of memory/cpu on the server performing async requests, storing variables in memory etc.
-2. The server running the job is potentially out of action until the job has completed (which might take quite a while).
-3. If our job has to update thousands of database records, it's very hard to internally throttle this due to the async nature of Node.
+1. The request would consume lots of memory/cpu on the server performing the request.
+2. The server running the request is potentially out of action until the processing has completed (which might take several seconds).
+3. If our user wants to update thousands of database records, it's very hard to internally throttle this due to the async nature of Node.
 
-Breaking this job down into multiple jobs would be a much better solution:
+
+Instead, let's send this request to our internal node.js worker farm and break it down into multiple jobs as this would be a much better solution:
+
+#### Your API
+Your API where the redibox job `enabled` option is set to `false` - which means we're in provider only mode and will not consume jobs on the API. Queues do not need to be specified on your config in this case - only consumers of jobs need the queues specified.
 
 ```javascript
-// Smaller jobs to update users
-export default function() {
-  const data = require('../my-massive-dataset.json');
-  
-  for (let i = 0, len = data.length; i < len; i++) {
-    const item = data[i];
-    
-    Job.create('my-queue', {
-      runs: 'updateUser',
+// some request controller
+export default function(req, res) {
+  // ...
+  // lets move the upload into redis - assumes 'uploadData' is the upload.
+  RediBox.client.set('users:upload:id', uploadData).then(() => {
+    Job.create('user-uploads', {
+      runs: 'getDataAndProcessIt',
       data: {
-        name: item.name,
-        settings: item.settings,
+        uploadKey: 'users:upload:id',
       }
     });
-  }
-  
-  return Promise.resolve();
+    return res.ok({ msg: 'Upload complete - we will notify you when your upload has been processed.'});
+  });
 }
 
+```
+
+#### A server in your worker farm
+
+Your server in your internal worker farm where the redibox job `enabled` option is set to `true`, meaning these servers will be able to consume and also provide new jobs. You'll need to add in the config for your queues on these servers, consumers need to know what queues to consume from.
+
+```javascript
+// get the upload data and break it into smaller update jobs for load distribution
+export function getDataAndProcessIt() {
+  const { dataKey } = this.data;
+  
+  return RediBox.client.get(dataKey).then((uploadData) => {
+    if (!uploadData) return Promise.reject(`Upload not found for key '${dataKey}'`);
+    
+    // we could just do all the updates in this one job but we have a farm
+    // so lets distribute the load and spread the updates across all our servers
+    // by creating individual jobs for each update
+    for (let i = 0, len = uploadData.length; i < len; i++) {
+      const item = uploadData[i];
+      Job.create('user-upload-items', {
+        runs: 'updateUser',
+        data: {
+          name: item.name,
+          settings: item.settings,
+        }
+      });
+    }
+  });
+}
+
+// your global updateUser job function
+// this handles a single item in the users upload
 export function updateUser() {
   return User
     .find({ name: this.data.name })
@@ -77,6 +110,8 @@ export function updateUser() {
             return Promise.reject(error);
           }
           
+          // notify the user that this part of their upload has been processed
+          // for example they're importing users into their org, show the user as imported
           return Promise.resolve();
         });
       });
@@ -84,12 +119,14 @@ export function updateUser() {
 }
 ```
 
-1. The first job is fully synchronous and very performant. This will consume little memory and usage.
+1. The first job is short, sweet and very performant. This will consume little memory and usage while enabling us to distribute the load.
 2. The second job is user specific; we're querying an individual user per job. This can be throttled by using a different
 queue. If a user query fails we can also trap the errors for the specific user.
 3. If a single job fails, other jobs won't be effected.
 4. We can add more servers to the environment to power through the jobs quicker.
 5. We've removed the need to use an async library.
+
+As you can see this now become distributed and the load is spread across all your workers, each handling jobs of their own concurrently, resulting in faster processing overall.
 
 ### Queues
 
