@@ -64,5 +64,5 @@ The above example would mean external api jobs would run one at a time, at a lim
 #### Restrictions
 
 There are no limits to how many queues can be created, however from a technical point of view, each queue creates its own
-internal Redis connection to perform blocking requests. Therefore bare in mind more queues equals more connections which
+internal Redis connection to perform blocking requests. Therefore keep in mind more queues equals more connections which
 might need some consideration depending on your Redis environment setup.
