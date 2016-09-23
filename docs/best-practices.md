@@ -110,8 +110,11 @@ export function updateUser() {
             return Promise.reject(error);
           }
           
+          // TODO
           // notify the user that this part of their upload has been processed
           // for example they're importing users into their org, show the user as imported
+          // ...
+          
           return Promise.resolve();
         });
       });
@@ -119,7 +122,7 @@ export function updateUser() {
 }
 ```
 
-1. The first job is short, sweet and very performant. This will consume little memory and usage while enabling us to distribute the load.
+1. The first job is short, sweet and very performant. This will consume little memory and cpu usage while enabling us to distribute the load for effecient processing.
 2. The second job is user specific; we're querying an individual user per job. This can be throttled by using a different
 queue. If a user query fails we can also trap the errors for the specific user.
 3. If a single job fails, other jobs won't be effected.
