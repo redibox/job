@@ -29,10 +29,10 @@ export default function(req, res) {
       });
   }, function(error) {
     if (error) {
-      return res.serverError(error);
+      return res.status(500).send(error);
     }
     
-    return res.ok({ msg: 'Sorry i took a long time, but all done!' });
+    return res.json({ msg: 'Sorry i took a long time, but all done!' });
   });
 }
 
@@ -40,7 +40,7 @@ export default function(req, res) {
 
 There's several problems here:
 
-1. The request would consume lots of memory/cpu on the server performing the request.
+1. The request could consume lots of memory/cpu on the server performing the request.
 2. The server running the request is potentially out of action until the processing has completed (which might take several seconds).
 3. If our user wants to update thousands of database records, it's very hard to internally throttle this due to the async nature of Node.
 
@@ -62,7 +62,7 @@ export default function(req, res) {
         uploadKey: 'users:upload:id',
       }
     });
-    return res.ok({ msg: 'Upload complete - we will notify you when your upload has been processed.'});
+    return res.json({ msg: 'Upload complete - we will notify you when your upload has been processed.'});
   });
 }
 
@@ -70,11 +70,13 @@ export default function(req, res) {
 
 #### A server in your worker farm
 
-Your server in your internal worker farm where the redibox job `enabled` option is set to `true`, meaning these servers will be able to consume and also provide new jobs. You'll need to add in the config for your queues on these servers, consumers need to know what queues to consume from.
+Your server in your internal worker farm where the redibox job `enabled` option is set to `true`, meaning these servers will be able to consume and also provide new jobs. You'll need to add the config for your queues on these servers, consumers need to know what queues to consume jobs from.
 
 ```javascript
 // get the upload data and break it into smaller update jobs for load distribution
 export function getDataAndProcessIt() {
+  // 'this' is the current job
+  // 'this.data' is the current jobs data.
   const { dataKey } = this.data;
   
   return RediBox.client.get(dataKey).then((uploadData) => {
