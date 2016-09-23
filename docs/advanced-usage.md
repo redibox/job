@@ -1,21 +1,25 @@
 ## Advanced Usage
 
-### Inline vs globally accessible functions
+### Queue handler vs globally accessible functions
 
-For simplicity reasons, previous examples have mostly shown the functions jobs execute as inline, e.g:
+For simplicity reasons, previous examples have mostly shown the functions jobs executing using the default queue handler, e.g:
 
 ```javascript
-RediBox.hooks.job.create('queue', {
-  runs: function(job) {
-    console.log('Job running');
-  }
+// specify a 'handler' function on the 'myqueue' config options
+// all jobs without a `runs` will fallback to using this handler
+// to process jobs
+
+RediBox.hooks.job.create('myqueue', {
+  data: {
+    foo: 'bar',
+  },
 });
 ```
 
 Although this will work, typically this will be unmanageable within your code base. Ideally you'll want to expose your functions
 to be globally accessible, much like [Sails JS Hooks](http://sailsjs.org/documentation/concepts/extending-sails/hooks). This allows
 functions to be broken down into file based logic and callable globally. If the job detects a string as a run function,
-it'll attempt to execute it, assuming it's a global function.
+it'll attempt to deep get the dot notated path and execute the function, assuming it's a global path.
 
 This allows for much cleaner code, e.g:
 
@@ -46,7 +50,7 @@ Lets assume we're using an ORM which can perform database queries and each query
 
 ```javascript
 export default function() {
-  return Person.find();
+  return Person.update(1234, { hasKittens: true });
 }
 ```
 
@@ -85,8 +89,8 @@ An example:
 ```javascript
 Redibox.hooks.job.create('queue', {
   runs: [
-    'global.generic.findPerson',
-    'global.person.updatePerson',
+    'generic.findPerson',
+    'person.updatePerson',
   ],
   data: {
     query: {
@@ -186,7 +190,10 @@ export default function() {
       data,
     }));
   }
-
+  
+  // in reality you'd probably want to Promise.map these with a concurrency limit
+  // but you can just Job.create() without calling the promise - the job hook will queue these for creating at 
+  // the start of the next event loop - with concurrency batching.
   return Promise.all(promises);
 }
 ```
