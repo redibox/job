@@ -26,19 +26,20 @@ This allows for much cleaner code, e.g:
 ```javascript
 // firstJob.js
 RediBox.hooks.job.create('queue', {
-  runs: 'sails.hooks.api.request',
+  runs: 'tasks.request',
 });
 ```
 
 ```javascript
 // request.js
-export default function() {
-  console.log(this.data);
+global.tasks = { 
+  request() {
+    console.log(this.data);
+  }
 }
 ```
 
-It's also worth noting that with inline functions, the job is bound as the first argument to the function, whilst with 
-a global function it's bound to it's scope, whereby the job can be accessed with `this`.
+It's also worth noting by default the task function is bound to the job instance, the first argument also becomes the job instance. To disable the `bind` you can set the `noBind` option on an individial job (on it's options) or on the queue options to turn it off entirely.
 
 ### Error handling
 
