@@ -1,6 +1,6 @@
 ## Advanced Usage
 
-### Queue handler vs globally accessible functions
+### Generic queue handler vs globally accessible functions
 
 For simplicity reasons, previous examples have mostly shown the functions jobs executing using the default queue handler, e.g:
 
