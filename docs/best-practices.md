@@ -3,7 +3,7 @@
 ### Job
 
 With a clustered server environment with high queue concurrency, the speed in which the overall "task" will complete
-will be much quicker if task is broken down into many smaller jobs, rather than one large job. Memory/CPU usage will be kept lower
+will be much quicker if the task is broken down into many smaller jobs, rather than one large job. Memory/CPU usage will be kept lower
 and error trapping will be much more specific to a single job for easier debugging.
 
 **Example**: We've got a very large set of data which a user has uploaded which needs to be processed. The data needs to be interated over, 
