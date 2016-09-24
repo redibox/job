@@ -1,8 +1,9 @@
-import Job from './job';
-import Promise from 'bluebird';
-import defaults from './defaults';
-import EventEmitter from 'eventemitter3';
 import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
+import Promise from 'bluebird';
+import EventEmitter from 'eventemitter3';
+
+import Job from './job';
+import defaults from './defaults';
 
 /**
  * TODO move to helpers
@@ -53,17 +54,15 @@ export default class Queue extends EventEmitter {
   constructor(options, core) {
     super();
     this.core = core;
-    this.client = core.client;
     this.paused = false;
     this.started = false;
     this.throttled = false;
     this.log = this.core.log;
     this.name = options.name;
+    this.client = core.client;
     this.handler = options.handler || null;
     this.options = Object.assign({}, defaults.queue, options || {});
-    this.core.createClient('block', this).then(() => {
-      this.log.verbose(`Blocking client for queue '${this.name}' is ready. Starting queue processor.`);
-    });
+    this.core.createClient('block', this);
   }
 
   /**
@@ -81,37 +80,33 @@ export default class Queue extends EventEmitter {
    *
    * @returns {Promise}
    */
-  checkHealth() {
+  getStatus() {
     return this
-    .client.multi()
-    .llen(this.toKey('waiting'))
-    .llen(this.toKey('active'))
-    .scard(this.toKey('succeeded'))
-    .scard(this.toKey('failed'))
-    .then(results => { /* eslint arrow-body-style: 0 */
-      return {
-        waiting: results[0][1],
-        active: results[1][1],
-        succeeded: results[2][1],
-        failed: results[3][1],
-      };
-    });
+      .client.multi()
+      .llen(this.toKey('waiting'))
+      .llen(this.toKey('active'))
+      .scard(this.toKey('succeeded'))
+      .scard(this.toKey('failed'))
+      .then((results) => { /* eslint arrow-body-style: 0 */
+        return {
+          waiting: results[0][1],
+          active: results[1][1],
+          succeeded: results[2][1],
+          failed: results[3][1],
+        };
+      });
   }
 
   /**
    *
    * @returns {Promise}
    */
-  _getNextJob() {
+  _getNextJob(cb) {
     this.log.verbose(`Getting next job for queue '${this.name}'.`);
-    return this.clients.block.brpoplpush(
+    this.clients.block.brpoplpush(
       this.toKey('waiting'),
-      this.toKey('active'), 0
-    ).then(jobId =>
-      Job.fromId(this, jobId).then(job => {
-        return job;
-      })
-    );
+      this.toKey('active'), 0,
+      (pushError, jobId) => pushError ? cb(pushError) : Job.fromId(this, jobId).then(job => cb(null, job)).catch(err => cb(err)));
   }
 
   /**
@@ -124,6 +119,7 @@ export default class Queue extends EventEmitter {
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
 
+    // TODO allow hooking into this event rather than us doing this poop here
     if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
       /* eslint no-console: 0 */
       const jobData = JSON.stringify(job.data.data || {});
@@ -157,17 +153,16 @@ export default class Queue extends EventEmitter {
   _runJob(job) {
     if (!job || !job.data) return Promise.resolve();
     const runs = job.data && job.data.runs && Array.isArray(job.data.runs) ? job.data.runs[0] : job.data.runs;
-    const handler = (typeof this.handler === 'string' ?
-        deepGet(global, this.handler) : this.handler) || deepGet(global, runs);
+    const handler = (typeof this.handler === 'string' ? deepGet(global, this.handler) : this.handler) || deepGet(global, runs);
 
     let preventStallingTimeout;
     let handled = false;
     let promiseOrRes;
 
     // Handle an "OK" response from the promise
-    const handleOK = data => {
+    const handleOK = (data) => {
       // silently ignore any multiple calls
-      if (handled) return void 0;
+      if (handled) return undefined;
 
       clearTimeout(preventStallingTimeout);
       handled = true;
@@ -183,12 +178,12 @@ export default class Queue extends EventEmitter {
     };
 
     // Handle any errors returned
-    const handleError = jobError => {
+    const handleError = (jobError) => {
       clearTimeout(preventStallingTimeout);
 
       // silently ignore any multiple calls
       if (handled) {
-        return void 0;
+        return undefined;
       }
 
       handled = true;
@@ -207,7 +202,7 @@ export default class Queue extends EventEmitter {
     const preventStalling = () => {
       this.client.srem(this.toKey('stalling'), job.id, () => {
         if (!handled) {
-          preventStallingTimeout = setTimeout(preventStalling, this.options.stallInterval / 2);
+          preventStallingTimeout = setTimeout(preventStalling, this.options.stallInterval / 3);
         }
       });
     };
@@ -223,9 +218,11 @@ export default class Queue extends EventEmitter {
       );
     }
 
-    preventStalling(); // start stalling monitor
+    // start stalling monitoring
+    preventStalling();
 
     job._internalData = job.data;
+
     job.data = job.data.data || job.data;
 
     if (job.options.timeout) {
@@ -286,13 +283,14 @@ export default class Queue extends EventEmitter {
 
     if (status === 'failed') {
       if (job.options.retries > 0) {
-        job.options.retries = job.options.retries - 1;
+        job.options.retries -= 1;
         job.status = 'retrying';
         multi.hset(this.toKey('jobs'), job.id, job.toData());
         multi.lpush(this.toKey('waiting'), job.id);
       } else {
         job.status = 'failed';
         multi.hdel(this.toKey('jobs'), job.id);
+
         // TODO track failures and their data somewhere else for reviewing
         // multi.hset(this.toKey('jobs'), job.id, job.toData());
         // multi.sadd(this.toKey('failed'), job.id);
@@ -300,9 +298,12 @@ export default class Queue extends EventEmitter {
     } else {
       job.status = 'succeeded';
       multi.hdel(this.toKey('jobs'), job.id);
+
       // TODO track successes and their data somewhere else for reviewing
       // multi.hset(this.toKey('jobs'), job.id, job.toData());
       // multi.sadd(this.toKey('succeeded'), job.id);
+
+      // TODO allow hooking into this event rather than us doing this poop here
       if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
         /* eslint no-console: 0 */
         const jobData = JSON.stringify(job.data.data || {});
@@ -341,7 +342,7 @@ export default class Queue extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      multi.exec(errMulti => {
+      multi.exec((errMulti) => {
         if (errMulti) return reject(errMulti);
         return resolve({ status, result: error || data });
       });
@@ -394,7 +395,7 @@ export default class Queue extends EventEmitter {
 
       return new Promise((resolve, reject) => {
         return this.core.hooks.job.create(nextQueue, job.data).then(() => {
-          multi.exec(errMulti => {
+          multi.exec((errMulti) => {
             if (errMulti) return reject(errMulti);
             return resolve({ status, result: error || data });
           });
@@ -411,7 +412,7 @@ export default class Queue extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      return multi.exec(errMulti => {
+      return multi.exec((errMulti) => {
         if (errMulti) return reject(errMulti);
         return resolve({ status, result: error || data });
       });
@@ -423,16 +424,18 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _onLocalTickComplete = () => {
-    this.running--;
-    this.queued--;
+    this.running -= 1;
+    this.queued -= 1;
+
     if (!this.options.throttle) return setImmediate(this._queueTick);
 
     return this.client.throttle(
       this.toKey('throttle'),
       this.options.throttle.limit,
       this.options.throttle.seconds
-    ).then(throttle => {
+    ).then((throttle) => {
       const shouldThrottle = throttle[0] === 1;
+
       if (!shouldThrottle) {
         this.throttled = false;
         return setImmediate(this._queueTick);
@@ -451,7 +454,7 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _onLocalTickError = (error) => {
-    this.queued--;
+    this.queued -= 1;
     this.log.error(error);
     setImmediate(this._queueTick);
   };
@@ -463,21 +466,23 @@ export default class Queue extends EventEmitter {
    */
   _queueTick = () => {
     if (this.paused || !this.options.enabled) {
-      return void 0;
+      return;
     }
-    this.queued++;
-    return this
-    ._getNextJob()
-    .then(job => {
-      this.running++;
+
+    this.queued += 1;
+
+    this._getNextJob((err, job) => {
+      if (err) return this._onLocalTickError(err);
+      this.running += 1;
+
       // queue more jobs if within limit
       if ((this.running + this.queued) < this.options.concurrency) {
         // concurrency is a little pointless right now if we're throttling jobs
         if (!this.options.throttle) setImmediate(this._queueTick);
       }
 
-      return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
-    }).catch(this._onLocalTickError);
+      this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
+    });
   };
 
   /**
@@ -494,7 +499,7 @@ export default class Queue extends EventEmitter {
   beginWorking() {
     if (this.started || !this.options.enabled) {
       this.log.info(`Queue ${this.name} is currently disabled.`);
-      return void 0;
+      return;
     }
 
     this.queued = 0;
@@ -506,12 +511,8 @@ export default class Queue extends EventEmitter {
     this.clients.block.once('error', this._restartProcessing);
     this.clients.block.once('close', this._restartProcessing);
 
-    this.checkStalledJobs().then(() => {
-      this.log.verbose('checkStalledJobs completed');
-    }).catch(() => {
-    });
-
-    return this._queueTick();
+    this.checkStalledJobs();
+    this._queueTick();
   }
 
   /**
@@ -520,17 +521,16 @@ export default class Queue extends EventEmitter {
    */
   checkStalledJobs() {
     this.log.verbose(`${this.name}: checkStalledJobs`);
-    return this.client.checkstalledjobs(
+    this.client.checkstalledjobs(
       this.toKey('stallTime'),
       this.toKey('stalling'),
       this.toKey('waiting'),
       this.toKey('active'),
       getTimeStamp(),
-      this.options.stallInterval
-    ).then(() => {
-      if (!this.options.enabled || this.paused) return Promise.resolve();
-      return Promise.delay(this.options.stallInterval).then(::this.checkStalledJobs);
-    });
+      this.options.stallInterval, () => {
+        if (!this.options.enabled || this.paused) return;
+        setTimeout(::this.checkStalledJobs, this.options.stallInterval);
+      });
   }
 
   /**

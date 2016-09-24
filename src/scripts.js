@@ -30,9 +30,9 @@ export default {
     keys: 3,
     lua: `
         --[[
-        key 1 -> rab:job:name:jobs
-        key 2 -> rab:job:name:waiting
-        key 3 -> rab:job:name:id (job ID counter)
+        key 1 -> rdb:job:name:jobs
+        key 2 -> rdb:job:name:waiting
+        key 3 -> rdb:job:name:id (job ID counter)
         arg 1 -> job data
         arg 2 -> should be unique?
         arg 3 -> customId
@@ -65,29 +65,28 @@ export default {
     keys: 4,
     lua: `
         --[[
-        key 1 -> rab:job:name:stallTime
-        key 2 -> rab:job:name:stalling
-        key 3 -> rab:job:name:waiting
-        key 4 -> rab:job:name:active
+        key 1 -> rdb:job:queue:stallTime
+        key 2 -> rdb:job:queue:stalling
+        key 3 -> rdb:job:queue:waiting
+        key 4 -> rdb:job:queue:active
         arg 1 -> ms timestamp ("now")
         arg 2 -> ms stallInterval
 
         returns {resetJobId1, resetJobId2, ...}
 
-        workers are responsible for removing their jobId from the stalling set every stallInterval ms
-        if a jobId is not removed from the stalling set within a stallInterval window,
-        we assume the job has stalled and should be reset (moved from active back to waiting)
+        workers remove the jobs from the stalling set every 'stallInterval' ms
+        if a job isn't removed from the stall set within the stallInterval time period then
+        we assume that the job has stalled and we'll reset it (moved from active back to waiting)
         --]]
 
         local now = tonumber(ARGV[1])
         local stallTime = tonumber(redis.call("get", KEYS[1]) or 0)
 
         if now < stallTime then
-          -- hasn't been long enough (stallInterval) since last check
           return 0
         end
 
-        -- reset any stalling jobs by moving from active to waiting
+        -- move stalled jobs from active to waiting set
         local stalling = redis.call("smembers", KEYS[2])
         if #stalling > 0 then
           redis.call("rpush", KEYS[3], unpack(stalling))
@@ -97,7 +96,7 @@ export default {
           redis.call("del", KEYS[2])
         end
 
-        -- copy currently active jobs into stalling set
+        -- copy active jobs into stalling set
         local actives = redis.call("lrange", KEYS[4], 0, -1)
         if #actives > 0 then
           redis.call("sadd", KEYS[2], unpack(actives))
@@ -113,12 +112,12 @@ export default {
     keys: 6,
     lua: `
         --[[
-        key 1 -> rab:job:test:succeeded
-        key 2 -> rab:job:test:failed
-        key 3 -> rab:job:test:waiting
-        key 4 -> rab:job:test:active
-        key 5 -> rab:job:test:stalling
-        key 6 -> rab:job:test:jobs
+        key 1 -> rdb:job:queue:succeeded
+        key 2 -> rdb:job:queue:failed
+        key 3 -> rdb:job:queue:waiting
+        key 4 -> rdb:job:queue:active
+        key 5 -> rdb:job:queue:stalling
+        key 6 -> rdb:job:queue:jobs
         arg 1 -> jobId
         ]]
 

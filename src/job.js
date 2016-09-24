@@ -102,7 +102,7 @@ class Job {
    * @param id
    */
   static fromId(queue, id) {
-    return queue.client.hget(queue.toKey('jobs'), id).then((data) =>
+    return queue.client.hget(queue.toKey('jobs'), id).then(data =>
       Job.fromData(queue, id, data)
     );
   }
@@ -110,10 +110,8 @@ class Job {
   /**
    * Converts a JSON string of a job's data to a new instance of Job
    * @static
-   * @param queue
-   * @param id
-   * @param data
    * @returns {Job | null}
+   * @param args
    */
   static fromData(...args) {
     const obj = tryJSONParse(args[2]);
@@ -166,6 +164,7 @@ class Job {
           return Promise.reject(new Error(`ERR_DUPLICATE: Job ${this.id} already exists, save has been aborted.`));
         }
 
+        // TODO allow hooking into this event rather than us doing this poop here
         if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
           /* eslint no-console: 0 */
           const jobData = JSON.stringify(this.data.data || {});
@@ -198,7 +197,7 @@ class Job {
   save(auto) {
     if (!auto && this._saved) return Promise.resolve();
 
-    // lock it so autoSave doesn't pick it up but only deletes it from queue
+    // lock it so _autoSave doesn't pick it up but only deletes it from queue
     this._saved = true;
 
     this.id = `${this.queueName}-${(this.options.unique ? sha1sum(this.data) : cuid())}`;
@@ -235,7 +234,8 @@ class Job {
           return this.onFailureCallback(message.data);
         },
         this.options.timeout + 1000
-      ).then(() =>  // subscribed callback
+      ).then(() =>
+        // now subscribed so save the job
         this._save()
       ).catch(error =>
         this.onFailureCallback({
@@ -318,78 +318,32 @@ class Job {
     return `${this.core.hooks.job.options.keyPrefix}:${this.queueName}:${str}`;
   }
 
+  remove() {
+    return this.core.client.removejob(
+      this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
+      this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
+      this.id);
+  }
+
+  /**
+   * Re-save this job for the purpose of retrying it.
+   * @param cb
+   */
+  retry() {
+    return this.core.client.multi()
+      .srem(this._toQueueKey('failed'), this.id)
+      .lpush(this._toQueueKey('waiting'), this.id);
+  }
+
+  /**
+   *
+   * @param set
+   * @returns {Promise.<boolean>}
+   */
+  inSet(set) {
+    return this.core.client.sismember(this._toQueueKey(set), this.id).then(result => result === 1);
+  }
+
 }
 
 export default Job;
-
-// Experimental code below is TODO
-
-// /**
-//  *
-//  * @returns {Job.initialJob|*}
-//  */
-// initialJob() {
-//   return this._internalData.initialJob;
-// }
-//
-// /**
-//  *
-//  * @returns {Job.initialQueue|*}
-//  */
-// initialQueue() {
-//   return this._internalData.initialQueue;
-// }
-
-/**
- *
- * @param jobId
- * @returns {Promise}
- */
-// getJob(jobId) {
-//   return new Promise((resolve, reject) => {
-//     if (jobId in this.jobs) {
-//       // we have the job locally
-//       return resolve(this.jobs[jobId]);
-//     }
-//     // not local so gather from redis
-//     Job.fromId(this, jobId)
-//        .then(job => {
-//          this.jobs[jobId] = job;
-//          return resolve(job);
-//        }).catch(reject);
-//   });
-// }
-//
-// /**
-//  * Remove this job from all sets.
-//  * @param cb
-//  */
-// remove(cb = noop) {
-//   this.core.client.removejob(
-//     this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
-//     this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
-//     this.id, cb);
-// }
-//
-// /**
-//  * Re-save this job for the purpose of retrying it.
-//  * @param cb
-//  */
-// retry(cb = noop) {
-//   this.core.client.multi()
-//       .srem(this._toQueueKey('failed'), this.id)
-//       .lpush(this._toQueueKey('waiting'), this.id)
-//       .exec(cb);
-// }
-//
-// /**
-//  * Callbacks true of false if this job exists in the specified set.
-//  * @param set
-//  * @param cb
-//  */
-// isInSet(set, cb = noop) {
-//   this.core.client.sismember(this._toQueueKey(set), this.id, (err, result) => {
-//     if (err) return cb(err);
-//     return cb(null, result === 1);
-//   });
-// }

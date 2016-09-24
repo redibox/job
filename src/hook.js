@@ -1,10 +1,11 @@
+import { BaseHook } from 'redibox';
+import Promise from 'bluebird';
+
 import cuid from 'cuid';
 import Job from './job';
 import Queue from './queue';
-import Promise from 'bluebird';
 import defaults from './defaults';
 import scripts from './scripts';
-import { BaseHook } from 'redibox';
 
 export default class JobHook extends BaseHook {
   constructor() {
@@ -57,6 +58,10 @@ export default class JobHook extends BaseHook {
   }
 
   /**
+   * PUBLIC API
+   */
+
+  /**
    * Creates a new job for the specified queue
    * @param queue
    * @param data
@@ -70,18 +75,35 @@ export default class JobHook extends BaseHook {
     this.log.verbose(`Creating job for queue ${args[0]} with ref ${ref}`);
 
     if (!this.autoSaveImmediate) {
-      this.autoSaveImmediate = setImmediate(this.autoSave.bind(this));
-    } else if (!Object.keys(this.autoCreateQueue).length > 200) {
-      this.autoSave();
+      this.autoSaveImmediate = setImmediate(this._autoSave.bind(this));
+    } else if (!Object.keys(this.autoCreateQueue).length >= this.options.autoSave.maxJobs) {
+      this._autoSave();
     }
 
     return this.autoCreateQueue[ref];
   }
 
+
+  /**
+   *
+   * @param queue
+   * @param jobId
+   * @returns {Promise.<TResult>}
+   */
+  getJobById(queue, jobId) {
+    return this.client.hget(this._toQueueKey(queue, 'jobs'), jobId).then((data) =>
+      Job.fromData(queue, jobId, data)
+    );
+  }
+
+  /**
+   * PRIVATE API
+   */
+
   /**
    * Auto save any jobs in the queue
    */
-  autoSave() {
+  _autoSave() {
     clearImmediate(this.autoSaveImmediate);
     this.autoSaveImmediate = null;
 
@@ -105,23 +127,21 @@ export default class JobHook extends BaseHook {
 
     if (jobsToSave.length === 1) {
       return this.autoCreateQueue[jobsToSave[0]]
-      .withoutProxy()
-      .save(true)
-      .then(() => this.cleanupAutoSave.call(this, jobsToSave))
-      .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
+        .withoutProxy()
+        .save(true)
+        .then(() => this._cleanupAutoSave.call(this, jobsToSave))
+        .catch(err => this._cleanupAutoSave.call(this, jobsToSave, err));
     }
 
     /* eslint no-confusing-arrow: 0 */
-    return Promise
-    .map(
+    return Promise.map(
       jobsToSave,
       ref => this.autoCreateQueue && this.autoCreateQueue[ref] ?
         this.autoCreateQueue[ref].withoutProxy().save(true) :
-        Promise.resolve(),
-      { concurrency: 25 }
+        Promise.resolve()
     )
-    .then(() => this.cleanupAutoSave.call(this, jobsToSave))
-    .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
+      .then(() => this._cleanupAutoSave.call(this, jobsToSave))
+      .catch(err => this._cleanupAutoSave.call(this, jobsToSave, err));
   }
 
   /**
@@ -129,7 +149,7 @@ export default class JobHook extends BaseHook {
    * @param jobsToRemove
    * @param possibleError
    */
-  cleanupAutoSave(jobsToRemove, possibleError) {
+  _cleanupAutoSave(jobsToRemove, possibleError) {
     if (possibleError) this.log.error(possibleError);
     this.log.verbose(`Removing ${jobsToRemove.length} saved jobs from the auto-save queue.`);
     if (this.autoCreateQueue) {
@@ -146,7 +166,7 @@ export default class JobHook extends BaseHook {
       }
     }
 
-    return void 0;
+    return undefined;
   }
 
   /**
@@ -165,6 +185,20 @@ export default class JobHook extends BaseHook {
    */
   toKey(key = '') {
     return `${this.options.keyPrefix}:${key}`;
+  }
+
+  /**
+   * Generates a queue prefixed key based on the provided string.
+   * @param queue
+   * @param str
+   * @returns {string}
+   * @private
+   */
+  _toQueueKey(queue, str) {
+    if (this.core.cluster.isCluster()) {
+      return `${this.options.keyPrefix}:{${queue}}:${str}`;
+    }
+    return `${this.options.keyPrefix}:${queue}:${str}`;
   }
 
   /**

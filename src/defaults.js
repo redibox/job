@@ -6,6 +6,9 @@ export default {
   enabled: true,
   keyPrefix: 'job',
   startupDelay: 750,
-  stallInterval: 5000,
+  stallInterval: 15000,
+  autoSave: {
+    maxJobs: 1000,
+  },
 };
 
