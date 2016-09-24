@@ -117,8 +117,7 @@ export default class JobHook extends BaseHook {
       jobsToSave,
       ref => this.autoCreateQueue && this.autoCreateQueue[ref] ?
         this.autoCreateQueue[ref].withoutProxy().save(true) :
-        Promise.resolve(),
-      { concurrency: 25 }
+        Promise.resolve()
     )
     .then(() => this.cleanupAutoSave.call(this, jobsToSave))
     .catch(err => this.cleanupAutoSave.call(this, jobsToSave, err));
