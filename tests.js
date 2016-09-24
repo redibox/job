@@ -1,7 +1,6 @@
 global.HOOK_NAME = 'job';
-var client = require("fakeredis").createClient(6399);
 const Redibox = require('redibox').default;
-var UserHook = require('./lib/hook').default;
+const UserHook = require('./lib/hook').default;
 
 const config = {
   hooks: {},
