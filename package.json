@@ -1,7 +1,7 @@
 {
   "name": "redibox-hook-job",
   "description": "High performance, robust and flexible queue/worker system powered by redis.",
-  "version": "1.2.17",
+  "version": "1.2.18",
   "main": "lib/index.js",
   "author": "Mike Diarmid",
   "repository": "redibox/job",
