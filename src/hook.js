@@ -91,7 +91,7 @@ export default class JobHook extends BaseHook {
    * @returns {Promise.<TResult>}
    */
   getJobById(queue, jobId) {
-    return this.client.hget(this._toQueueKey(queue, 'jobs'), jobId).then((data) =>
+    return this.client.hget(this._toQueueKey(queue, 'jobs'), jobId).then(data =>
       Job.fromData(queue, jobId, data)
     );
   }
@@ -121,7 +121,7 @@ export default class JobHook extends BaseHook {
       }
     }
 
-    if (!jobsToSave.length) return void 0;
+    if (!jobsToSave.length) return undefined;
 
     this.log.verbose(`Auto-saving ${jobsToSave.length} jobs.`);
 

@@ -466,12 +466,12 @@ export default class Queue extends EventEmitter {
    */
   _queueTick = () => {
     if (this.paused || !this.options.enabled) {
-      return;
+      return undefined;
     }
 
     this.queued += 1;
 
-    this._getNextJob((err, job) => {
+    return this._getNextJob((err, job) => {
       if (err) return this._onLocalTickError(err);
       this.running += 1;
 
@@ -481,7 +481,7 @@ export default class Queue extends EventEmitter {
         if (!this.options.throttle) setImmediate(this._queueTick);
       }
 
-      this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
+      return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
     });
   };
 
