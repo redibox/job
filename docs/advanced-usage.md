@@ -199,7 +199,7 @@ export default function() {
 }
 ```
 
-#### Job Instance
+### Job Instance
 
 When creating a job it's possible to use the instance of the created job to trigger methods on the class:
 
