@@ -33,6 +33,7 @@ Job.create('my-queue', {
 
 - [Getting Started](https://github.com/redibox/job/blob/master/docs/getting-started.md)
 - [Queues](https://github.com/redibox/job/blob/master/docs/queues.md)
+- [Creating Jobs](https://github.com/redibox/job/blob/master/docs/creating-jobs.md)
 - [Advanced Usage](https://github.com/redibox/job/blob/master/docs/advanced-usage.md)
 - [Best Practices](https://github.com/redibox/job/blob/master/docs/best-practices.md)
 
