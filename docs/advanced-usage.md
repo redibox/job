@@ -198,3 +198,21 @@ export default function() {
   return Promise.all(promises);
 }
 ```
+
+#### Job Instance
+
+When creating a job it's possible to use the instance of the created job to trigger methods on the class:
+
+```javascript
+const job = RediBox.hooks.job.create('my-queue', {
+  runs: 'sails.hooks.myhook.runJobFoo',
+});
+
+job.onFailure(result => {
+  if (result.timeout) {
+    job.retry();
+  } else {
+    job.remove();
+  }
+});
+```
