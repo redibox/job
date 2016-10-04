@@ -2,7 +2,7 @@
 const chai = require('chai');
 const { assert } = chai;
 const RediBox = require('redibox').default;
-const HookClass = require('./../../lib/hook').default;
+const HookClass = require('./../../src/hook');
 
 describe('Core', () => {
   it('Should extend redibox hook class and provide an emitter', (done) => {
@@ -38,13 +38,6 @@ describe('Core', () => {
 });
 
 describe('Job Hook', () => {
-  it('Should create queues on init', () => {
-    assert.isDefined(Hook.queues);
-    assert.isDefined(Hook.queues.test);
-    assert.isDefined(Hook.queues.test2);
-    return Promise.resolve();
-  });
-
   it('Should create a blocker client per queue', () => {
     assert.isDefined(Hook.queues.test.clients.block);
     assert.isDefined(Hook.queues.test2.clients.block);

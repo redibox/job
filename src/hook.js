@@ -1,13 +1,13 @@
-import { BaseHook } from 'redibox';
-import Promise from 'bluebird';
+const { BaseHook } = require('redibox');
+const Promise = require('bluebird');
 
-import cuid from 'cuid';
-import Job from './job';
-import Queue from './queue';
-import defaults from './defaults';
-import scripts from './scripts';
+const cuid = require('cuid');
+const Job = require('./job');
+const Queue = require('./queue');
+const defaults = require('./defaults');
+const scripts = require('./scripts');
 
-export default class JobHook extends BaseHook {
+module.exports = class JobHook extends BaseHook {
   constructor() {
     super('job');
     this.queues = {};
@@ -175,7 +175,7 @@ export default class JobHook extends BaseHook {
    */
   queueCreate(queue) {
     this.log.verbose(`Queue '${queue.name}' created!`);
-    this.queues[queue.name] = new Queue({ ...this.options, ...queue }, this.core);
+    this.queues[queue.name] = new Queue(Object.assign({}, this.options, queue), this.core);
   }
 
   /**

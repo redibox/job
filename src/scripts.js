@@ -24,7 +24,7 @@
  *
  */
 
-export default {
+module.exports = {
 
   addJob: {
     keys: 3,

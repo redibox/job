@@ -1,7 +1,7 @@
 /*
  Default Configuration
  */
-export default {
+module.exports = {
   queues: [],
   enabled: true,
   keyPrefix: 'job',

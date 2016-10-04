@@ -243,6 +243,24 @@ describe('Job', () => {
     });
   });
 
+  it('Should retry if job fails and retry option is set', (done) => {
+    let count = 0;
+    global.singleJob = function queueHandler() {
+      count++;
+      if (count === 2) {
+        return done();
+      }
+      // TODO Handle no error message
+      return Promise.reject();
+    };
+
+    Hook.create('test', {
+      runs: 'singleJob',
+    }, {
+      retries: 2,
+    });
+  });
+
   // TODO https://github.com/redibox/job/issues/7
   // it('Should stop relay jobs mid chain by returning false', (done) => {
   //   let count = 0;

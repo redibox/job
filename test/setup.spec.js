@@ -1,6 +1,6 @@
 global.HOOK_NAME = 'job';
 const Redibox = require('redibox').default;
-const UserHook = require('./../lib/hook').default;
+const UserHook = require('./../src/hook');
 
 const config = {
   hooks: {},

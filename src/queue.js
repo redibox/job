@@ -1,9 +1,9 @@
-import { deepGet, isObject, getTimeStamp, tryJSONParse } from 'redibox';
-import Promise from 'bluebird';
-import EventEmitter from 'eventemitter3';
+const { deepGet, isObject, getTimeStamp, tryJSONParse } = require('redibox');
+const Promise = require('bluebird');
+const EventEmitter = require('eventemitter3');
 
-import Job from './job';
-import defaults from './defaults';
+const Job = require('./job');
+const defaults = require('./defaults');
 
 /**
  * TODO move to helpers
@@ -43,7 +43,7 @@ function trimStack(errorStack) {
   return stack;
 }
 
-export default class Queue extends EventEmitter {
+module.exports = class Queue extends EventEmitter {
 
   /**
    *
@@ -63,6 +63,19 @@ export default class Queue extends EventEmitter {
     this.handler = options.handler || null;
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this);
+  }
+
+  start() {
+    if (!this.started) {
+      this.paused = false;
+      this.beginWorking.bind(this)();
+    }
+  }
+
+  stop() {
+    if (this.started) {
+      this.paused = true;
+    }
   }
 
   /**
@@ -190,6 +203,7 @@ export default class Queue extends EventEmitter {
     const handleError = (jobError) => {
       clearTimeout(preventStallingTimeout);
 
+      const _error = jobError || new Error('Job was rejected with no error.');
       // silently ignore any multiple calls
       if (handled) {
         return undefined;
@@ -202,10 +216,10 @@ export default class Queue extends EventEmitter {
         job.data = job._internalData;
       }
 
-      this._logJobFailure(job, jobError);
+      this._logJobFailure(job, _error);
 
-      if (job.type === 'relay') return this._finishRelayJob(jobError, null, job);
-      return this._finishSingleJob(jobError, null, job);
+      if (job.type === 'relay') return this._finishRelayJob(_error, null, job);
+      return this._finishSingleJob(_error, null, job);
     };
 
     const preventStalling = () => {
@@ -265,12 +279,11 @@ export default class Queue extends EventEmitter {
    */
   _createJobEvent(error, data, job) {
     return {
-      job: {
+      job: Object.assign({
         id: job.id,
         worker_id: this.core.id,
         status: error ? 'failed' : 'succeeded',
-        ...job.data,
-      },
+      }, job.data),
       error,
       output: data,
     };
@@ -432,11 +445,11 @@ export default class Queue extends EventEmitter {
    *
    * @private
    */
-  _onLocalTickComplete = () => {
+  _onLocalTickComplete() {
     this.running -= 1;
     this.queued -= 1;
 
-    if (!this.options.throttle) return setImmediate(this._queueTick);
+    if (!this.options.throttle) return setImmediate(this._queueTick.bind(this));
 
     return this.client.throttle(
       this.toKey('throttle'),
@@ -447,33 +460,33 @@ export default class Queue extends EventEmitter {
 
       if (!shouldThrottle) {
         this.throttled = false;
-        return setImmediate(this._queueTick);
+        return setImmediate(this._queueTick.bind(this));
       }
 
       this.throttled = true;
       const timeRemaining = (throttle[2] === 0 ? 1 : throttle[2]);
       this.log.verbose(`'${this.name}' queue  reached it's throttle limit, resuming in ${timeRemaining} seconds.`);
-      return setTimeout(this._queueTick, timeRemaining * 1000);
-    }).catch(this._queueTick);
-  };
+      return setTimeout(this._queueTick.bind(this), timeRemaining * 1000);
+    }).catch(this._queueTick.bind(this));
+  }
 
   /**
    *
    * @param error
    * @private
    */
-  _onLocalTickError = (error) => {
+  _onLocalTickError(error) {
     this.queued -= 1;
     this.log.error(error);
-    setImmediate(this._queueTick);
-  };
+    setImmediate(this._queueTick.bind(this));
+  }
 
   /**
    *
    * @returns {*}
    * @private
    */
-  _queueTick = () => {
+  _queueTick() {
     if (this.paused || !this.options.enabled) {
       return undefined;
     }
@@ -481,26 +494,26 @@ export default class Queue extends EventEmitter {
     this.queued += 1;
 
     return this._getNextJob((err, job) => {
-      if (err) return this._onLocalTickError(err);
+      if (err) return this._onLocalTickError.bind(this)(err);
       this.running += 1;
 
       // queue more jobs if within limit
       if ((this.running + this.queued) < this.options.concurrency) {
         // concurrency is a little pointless right now if we're throttling jobs
-        if (!this.options.throttle) setImmediate(this._queueTick);
+        if (!this.options.throttle) setImmediate(this._queueTick.bind(this));
       }
 
-      return this._runJob(job).then(this._onLocalTickComplete).catch(this._onLocalTickComplete);
+      return this._runJob(job).then(this._onLocalTickComplete.bind(this)).catch(this._onLocalTickComplete.bind(this));
     });
-  };
+  }
 
   /**
    *
    * @private
    */
-  _restartProcessing = () => {
-    this.clients.block.once('ready', this._queueTick);
-  };
+  _restartProcessing() {
+    this.clients.block.once('ready', this._queueTick.bind(this));
+  }
 
   /**
    * Start the queue.
@@ -517,11 +530,11 @@ export default class Queue extends EventEmitter {
 
     this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.options.concurrency}.`);
 
-    this.clients.block.once('error', this._restartProcessing);
-    this.clients.block.once('close', this._restartProcessing);
+    this.clients.block.once('error', this._restartProcessing.bind(this));
+    this.clients.block.once('close', this._restartProcessing.bind(this));
 
-    this.checkStalledJobs();
-    this._queueTick();
+    this.checkStalledJobs.bind(this)();
+    this._queueTick.bind(this)();
   }
 
   /**
@@ -538,7 +551,7 @@ export default class Queue extends EventEmitter {
       getTimeStamp(),
       this.options.stallInterval, () => {
         if (!this.options.enabled || this.paused) return;
-        setTimeout(::this.checkStalledJobs, this.options.stallInterval);
+        setTimeout(this.checkStalledJobs.bind(this), this.options.stallInterval);
       });
   }
 
@@ -559,5 +572,7 @@ export default class Queue extends EventEmitter {
    * @param eventName
    * @returns {string}
    */
-  toEventName = eventName => `queue:${this.name}:${eventName}`;
-}
+  toEventName(eventName) {
+    return `queue:${this.name}:${eventName}`;
+  }
+};

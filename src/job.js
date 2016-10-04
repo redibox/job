@@ -24,9 +24,9 @@
  *
  */
 
-import cuid from 'cuid';
-import Promise from 'bluebird';
-import { noop, sha1sum, tryJSONStringify, tryJSONParse } from 'redibox';
+const cuid = require('cuid');
+const Promise = require('bluebird');
+const { noop, sha1sum, tryJSONStringify, tryJSONParse } = require('redibox');
 
 /**
  * @class Job
@@ -346,4 +346,4 @@ class Job {
 
 }
 
-export default Job;
+module.exports = Job;
