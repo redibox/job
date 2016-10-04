@@ -1,19 +1,22 @@
 global.HOOK_NAME = 'job';
-import Redibox from 'redibox';
-import UserHook from './../src/hook';
+const Redibox = require('redibox').default;
+const UserHook = require('./../lib/hook').default;
 
 const config = {
   hooks: {},
   log: {
-    level: 'debug',
+    level: 'info',
   },
   pubsub: {
+    publisher: true,
     subscriber: true,
   },
   job: {
+    enabled: true,
+    mute: true,
     queues: [
-      { name: 'test', concurrency: 5 },
-      { name: 'test2', concurrency: 10 },
+      { name: 'test' },
+      { name: 'test2', handler: 'queueHandler' },
     ],
   },
 };
@@ -38,17 +41,15 @@ global.runners = {
 before(done => {
   global.RediBox = new Redibox(config, () => {
     global.Hook = RediBox.hooks[global.HOOK_NAME];
-    done();
+    setTimeout(done, 1000); // ioredis doesn't seem to connect exactly when it says it is
   });
 });
 
-beforeEach(() => {
-  Promise.all([
-    RediBox.client.flushall(),
-  ]);
+beforeEach((done) => {
+  RediBox.client.flushall(done)
 });
 
 after((done) => {
-  // RediBox.client.disconnect();
-  setTimeout(done, 2000);
+  RediBox.client.disconnect();
+  done();
 });
