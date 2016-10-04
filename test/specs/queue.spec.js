@@ -38,6 +38,7 @@ describe('Queue', () => {
     Hook.queues.test.stop();
     assert.equal(Hook.queues.test.paused, true);
     Hook.queues.test.start();
+    assert.equal(Hook.queues.test.paused, false);
     done();
   });
 });

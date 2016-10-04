@@ -75,6 +75,7 @@ module.exports = class Queue extends EventEmitter {
   stop() {
     if (this.started) {
       this.paused = true;
+      this.started = false;
     }
   }
 

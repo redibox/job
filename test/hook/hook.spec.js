@@ -5,6 +5,7 @@ const RediBox = require('redibox').default;
 const HookClass = require('./../../src/hook');
 
 describe('Core', () => {
+
   it('Should extend redibox hook class and provide an emitter', (done) => {
     const hook = new HookClass();
     const protoName = Object.getPrototypeOf(HookClass).name;

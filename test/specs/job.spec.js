@@ -124,31 +124,31 @@ describe('Job', () => {
       done();
     });
   });
-
-  // TODO https://github.com/redibox/job/issues/6
-  it('Should emit error event on job failure', (done) => {
-    let count = 0;
-    global.fooBar2 = function () {
-      count++;
-      throw 'foo';
-    };
-
-    global.fooBarEnd2 = function () {
-      assert.equal(this.data.hello, 123);
-      assert.equal(count, 3);
-      return Promise.resolve('DONE');
-    };
-
-    Hook.create('test2', {
-      runs: ['fooBar2', 'fooBar2', 'fooBar2', 'fooBarEnd2'],
-      data: {
-        foo: 'bar',
-      },
-    }).onFailure(job => {
-      assert.equal(job.error, 'foo');
-      done();
-    });
-  });
+  //
+  // // TODO https://github.com/redibox/job/issues/6
+  // it('Should emit error event on job failure', (done) => {
+  //   let count = 0;
+  //   global.fooBar2 = function () {
+  //     count++;
+  //     throw 'foo';
+  //   };
+  //
+  //   global.fooBarEnd2 = function () {
+  //     assert.equal(this.data.hello, 123);
+  //     assert.equal(count, 3);
+  //     return Promise.resolve('DONE');
+  //   };
+  //
+  //   Hook.create('test2', {
+  //     runs: ['fooBar2', 'fooBar2', 'fooBar2', 'fooBarEnd2'],
+  //     data: {
+  //       foo: 'bar',
+  //     },
+  //   }).onFailure(job => {
+  //     assert.equal(job.error, 'foo');
+  //     done();
+  //   });
+  // });
 
 
   it('Should allow a non-promise to be returned from a single job', (done) => {
@@ -250,7 +250,6 @@ describe('Job', () => {
       if (count === 2) {
         return done();
       }
-      // TODO Handle no error message
       return Promise.reject();
     };
 
@@ -278,6 +277,71 @@ describe('Job', () => {
   //     console.log('hello')
   //     assert.equal(count, 2);
   //     done();
+  //   });
+  // });
+
+  // TODO https://github.com/redibox/job/issues/8
+  // it('Should allow the instance of the job to retry itself', (done) => {
+  //   let count = 0;
+  //   global.singleJob = function queueHandler() {
+  //     console.log('doing job')
+  //     count++;
+  //     if (count === 2) {
+  //       return done();
+  //     }
+  //     return Promise.reject();
+  //   };
+  //
+  //   const job = Hook.create('test', {
+  //     runs: 'singleJob',
+  //   }).onFailure(() => {
+  //     console.log(job.retry)
+  //     job.retry();
+  //   });
+  // });
+
+  // TODO https://github.com/redibox/job/issues/10
+  // it('Should emit a failure if job timeout is set and hit', function (done) {
+  //   global.singleJob = function singleJob() {
+  //     return new Promise((resolve) => {
+  //       setTimeout(resolve, 2000);
+  //     });
+  //   };
+  //
+  //   Hook.create('test', {
+  //     runs: 'singleJob',
+  //   }, {
+  //     timeout: 1000,
+  //   }).onFailure(result => {
+  //     assert.equal(result.error.timeout, true);
+  //     done();
+  //   });
+  // });
+
+  // TODO https://github.com/redibox/job/issues/9
+  // it('Should retry the job if timeout is reached and retries is set', function(done) {
+  //   this.timeout(10000);
+  //   let count = 0;
+  //   global.singleJob = function queueHandler(job) {
+  //     count++;
+  //     console.log('Running', count)
+  //     if (count === 1) {
+  //       return new Promise((resolve) => {
+  //         setTimeout(() => { console.log('RESOLVED TIMEOUT')
+  //           return resolve()},
+  //             2000);
+  //       });
+  //     } else {
+  //       console.log('DONNNEEEEEE')
+  //       return done();
+  //     }
+  //   };
+  //
+  //   Hook.create('test', {
+  //     runs: 'singleJob',
+  //   }, {
+  //     retries: 5,
+  //     timeout: 1000,
   //   });
   // });
 });
