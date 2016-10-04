@@ -81,20 +81,24 @@ export default class Queue extends EventEmitter {
    * @returns {Promise}
    */
   getStatus() {
-    return this
-      .client.multi()
-      .llen(this.toKey('waiting'))
-      .llen(this.toKey('active'))
-      .scard(this.toKey('succeeded'))
-      .scard(this.toKey('failed'))
-      .then((results) => { /* eslint arrow-body-style: 0 */
-        return {
-          waiting: results[0][1],
-          active: results[1][1],
-          succeeded: results[2][1],
-          failed: results[3][1],
-        };
-      });
+    return new Promise((resolve, reject) => {
+      return this
+        .client.multi()
+        .llen(this.toKey('waiting'))
+        .llen(this.toKey('active'))
+        .scard(this.toKey('succeeded'))
+        .scard(this.toKey('failed'))
+        .exec((error, results) => {
+          if (error) return reject(error);
+          return resolve({
+            waiting: results[0][1],
+            active: results[1][1],
+            succeeded: results[2][1],
+            failed: results[3][1],
+          });
+        });
+    });
+
   }
 
   /**
