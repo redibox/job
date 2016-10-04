@@ -116,6 +116,10 @@ export default class Queue extends EventEmitter {
    * @private
    */
   _logJobFailure(job, jobError) {
+    if (this.options.mute) {
+      return;
+    }
+
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
 
@@ -152,8 +156,9 @@ export default class Queue extends EventEmitter {
    */
   _runJob(job) {
     if (!job || !job.data) return Promise.resolve();
+    // TODO Clean this up
     const runs = job.data && job.data.runs && Array.isArray(job.data.runs) ? job.data.runs[0] : job.data.runs;
-    const handler = (typeof this.handler === 'string' ? deepGet(global, this.handler) : this.handler) || deepGet(global, runs);
+    const handler = runs ? deepGet(global, runs) : typeof this.handler === 'string' ? deepGet(global, this.handler) : this.handler;
 
     let preventStallingTimeout;
     let handled = false;
