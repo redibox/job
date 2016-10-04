@@ -1,5 +1,12 @@
 ## RediBox Job
 
+[![Coverage Status](https://coveralls.io/repos/github/redibox/job/badge.svg?branch=master)](https://coveralls.io/github/redibox/job?branch=master)
+![Downloads](https://img.shields.io/npm/dt/redibox-hook-job.svg)
+[![npm version](https://img.shields.io/npm/v/redibox-hook-job.svg)](https://www.npmjs.com/package/redibox-hook-job)
+[![dependencies](https://img.shields.io/david/redibox/job.svg)](https://david-dm.org/redibox/job)
+[![build](https://travis-ci.org/redibox/job.svg)](https://travis-ci.org/redibox/job)
+[![License](https://img.shields.io/npm/l/redibox-hook-job.svg)](/LICENSE)
+
 The RediBox Job hook allows code to be run & distributed across many servers, whilst being highly configurable. Works well with the [Schedule](https://github.com/redibox/schedule) hook.
 
 ### Installation
