@@ -111,7 +111,6 @@ module.exports = class Queue extends EventEmitter {
           });
         });
     });
-
   }
 
   /**
@@ -175,7 +174,15 @@ module.exports = class Queue extends EventEmitter {
     if (!job || !job.data) return Promise.resolve();
     // TODO Clean this up
     const runs = job.data && job.data.runs && Array.isArray(job.data.runs) ? job.data.runs[0] : job.data.runs;
-    const handler = runs ? deepGet(global, runs) : typeof this.handler === 'string' ? deepGet(global, this.handler) : this.handler;
+    let handler = null;
+
+    if (runs) {
+      handler = deepGet(global, runs);
+    } else if (typeof this.handler === 'string') {
+      handler = deepGet(global, this.handler);
+    } else {
+      handler = this.handler;
+    }
 
     let preventStallingTimeout;
     let handled = false;

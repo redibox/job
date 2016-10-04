@@ -38,10 +38,10 @@ describe('Job', () => {
     });
   });
 
-  it('Should run a single job and pass data to it', () => {
+  it('Should run a single job and pass data to it', (done) => {
     global.singleJob = function singleJob(job) {
       assert.equal(job.data.foo, 'bar');
-      return Promise.resolve();
+      done();
     };
 
     Hook

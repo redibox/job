@@ -209,4 +209,4 @@ module.exports = class JobHook extends BaseHook {
   enabled(bool) {
     this.options.enabled = bool || !this.options.enabled;
   }
-}
+};
