@@ -335,38 +335,36 @@ describe('Job', () => {
   //   });
   // });
 
-  it('Should only allow 2 jobs to run every 2 seconds', function(done) {
-    this.timeout(5000);
+  it('Should thottle the jobs to only allow 2 jobs to run every 1 seconds', function(done) {
+    this.timeout(4000);
+    const seconds = 1;
+    const limit = 2;
     let interval = null;
     let iteration = 0;
     let count = 0;
 
-    const check = function () {
+    const check = function check() {
       iteration++;
-      console.log('Doing interval')
-      console.log(count)
-      console.log(iteration * 2)
-      if (count > iteration * 2) {
+      if (count > iteration * limit) {
         clearInterval(interval);
         return done(`${count} jobs have run, only ${iteration * 2} are allowed to run!`);
       }
       if (count === 4) {
         clearInterval(interval);
-        console.log('Completing')
         return done();
       }
+      return null;
     };
-
 
     global.singleJob = function singleJob() {
       count++;
-      console.log('Doing job...')
       return '';
     };
 
-    interval = setInterval(check, 2000);
+    interval = setInterval(check, seconds * 1000);
     check();
 
+    // Create 4 jobs
     for (let i = 0; i < 4; i++) {
       Hook.create('test3', {
         runs: 'singleJob',
