@@ -49,7 +49,7 @@ The only parameter of `onFailure` is a custom object with the parameteres of `er
 ### Example
 
 ```javascript
-RediBox.hooks.create('my-queue', {
+RediBox.hooks.job.create('my-queue', {
   runs: [
     'sails.hooks.myhook.runJobFoo',
     'sails.hooks.myhook.runJobBar',
@@ -61,12 +61,12 @@ RediBox.hooks.create('my-queue', {
 }, {
   retries: 2,
   timeout: 3000,
-  onSuccess(result => {
-    console.log('Job success!', result);
-  })
-  onFailure(result => {
-    console.log('Did job timeout?', result.timeout);
-    console.log('Error:', result.error);
-  });
+})
+.onSuccess(result => {
+   console.log('Job success!', result);
+})
+.onFailure(result => {
+   console.log('Did job timeout?', result.timeout);
+   console.log('Error:', result.error);
 });
 ```
