@@ -124,31 +124,21 @@ describe('Job', () => {
       done();
     });
   });
-  //
-  // // TODO https://github.com/redibox/job/issues/6
-  // it('Should emit error event on job failure', (done) => {
-  //   let count = 0;
-  //   global.fooBar2 = function () {
-  //     count++;
-  //     throw 'foo';
-  //   };
-  //
-  //   global.fooBarEnd2 = function () {
-  //     assert.equal(this.data.hello, 123);
-  //     assert.equal(count, 3);
-  //     return Promise.resolve('DONE');
-  //   };
-  //
-  //   Hook.create('test2', {
-  //     runs: ['fooBar2', 'fooBar2', 'fooBar2', 'fooBarEnd2'],
-  //     data: {
-  //       foo: 'bar',
-  //     },
-  //   }).onFailure(job => {
-  //     assert.equal(job.error, 'foo');
-  //     done();
-  //   });
-  // });
+
+  it('Should emit error event on job failure', (done) => {
+    let count = 0;
+    global.relayJob = function relayJob() {
+      count++;
+      throw 'foo';
+    };
+
+    Hook.create('test', {
+      runs: 'relayJob',
+    }).onFailure(job => {
+      assert.equal(job.error, 'foo');
+      done();
+    });
+  });
 
 
   it('Should allow a non-promise to be returned from a single job', (done) => {
