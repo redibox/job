@@ -302,8 +302,8 @@ describe('Job', () => {
   //     runs: 'singleJob',
   //   }, {
   //     timeout: 1000,
-  //   }).onFailure(result => {
-  //     assert.equal(result.error.timeout, true);
+  //   }).onFailure(job => {
+  //     assert.equal(job.error.timeout, true);
   //     done();
   //   });
   // });
@@ -334,4 +334,44 @@ describe('Job', () => {
   //     timeout: 1000,
   //   });
   // });
+
+  it('Should only allow 2 jobs to run every 2 seconds', function(done) {
+    this.timeout(5000);
+    let interval = null;
+    let iteration = 0;
+    let count = 0;
+
+    const check = function () {
+      iteration++;
+      console.log('Doing interval')
+      console.log(count)
+      console.log(iteration * 2)
+      if (count > iteration * 2) {
+        clearInterval(interval);
+        return done(`${count} jobs have run, only ${iteration * 2} are allowed to run!`);
+      }
+      if (count === 4) {
+        clearInterval(interval);
+        console.log('Completing')
+        return done();
+      }
+    };
+
+
+    global.singleJob = function singleJob() {
+      count++;
+      console.log('Doing job...')
+      return '';
+    };
+
+    interval = setInterval(check, 2000);
+    check();
+
+    for (let i = 0; i < 4; i++) {
+      Hook.create('test3', {
+        runs: 'singleJob',
+        data: i,
+      });
+    }
+  });
 });

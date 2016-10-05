@@ -17,6 +17,12 @@ const config = {
     queues: [
       { name: 'test' },
       { name: 'test2', handler: 'queueHandler' },
+      { name: 'test3',
+        throttle: {
+          limit: 2,
+          seconds: 2,
+        },
+      },
     ],
   },
 };
