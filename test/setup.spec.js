@@ -20,7 +20,7 @@ const config = {
       { name: 'test3',
         throttle: {
           limit: 2,
-          seconds: 2,
+          seconds: 1,
         },
       },
     ],

@@ -24,18 +24,18 @@ describe('Core', () => {
     done();
   });
 
-  it('Should mount to core.job', (done) => {
-    const config = { hooks: {} };
-    config.hooks[global.HOOK_NAME] = HookClass;
-    const redibox = new RediBox(config, () => {
-      assert.isTrue(redibox.hooks.hasOwnProperty(global.HOOK_NAME));
-      redibox.disconnect();
-      done();
-    });
-    redibox.on('error', (e) => {
-      console.error(e);
-    });
-  });
+  // it('Should mount to core.job', (done) => {
+  //   const config = { hooks: {} };
+  //   config.hooks[global.HOOK_NAME] = HookClass;
+  //   const redibox = new RediBox(config, () => {
+  //     assert.isTrue(redibox.hooks.hasOwnProperty(global.HOOK_NAME));
+  //     redibox.disconnect();
+  //     done();
+  //   });
+  //   redibox.on('error', (e) => {
+  //     console.error(e);
+  //   });
+  // });
 });
 
 describe('Job Hook', () => {
