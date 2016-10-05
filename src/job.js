@@ -27,39 +27,33 @@
 const cuid = require('cuid');
 const Promise = require('bluebird');
 const { noop, sha1sum, tryJSONStringify, tryJSONParse } = require('redibox');
+const defaults = require('./defaults');
+
+// TODO Move to default.js
+const defaultOptions = {
+  unique: false,
+  timeout: 60000, // 60 seconds
+};
 
 /**
  * @class Job
  */
 class Job {
 
-  /**
-   *
-   * @param core
-   * @param id
-   * @param data
-   * @param options
-   * @param queueName
-   * @param isNew
-   * @returns {*}
-   */
-  constructor(core, id, data = {}, options = {
-    unique: false,
-    timeout: 60000, // 1 minute default timeout
-  }, queueName, isNew) {
-    this.id = id;
+  constructor(core, queue, options, isNew) {
+    this.id = options.id || null;
     this.core = core;
-    this.data = data;
-    this._saved = false;
-    this.options = options;
-    this.status = 'created';
+    this.options = Object.assign({}, defaultOptions, options);
+    this.data = this.options.data;
+    this.status = this.options.status || 'created';
     this.subscriptions = [];
     this.ignoreProxy = false;
-    this.queueName = queueName;
-    this.type = data.runs && Array.isArray(data.runs) ? 'relay' : 'single';
+    this.queue = queue;
+    this.type = Array.isArray(options.runs) ? 'relay' : 'single';
+    this._saved = false;
 
-    // parent relay job timeout should cover all child job timeouts
-    if (this.type === 'relay') this.options.timeout = this.options.timeout * data.runs.length;
+    // Timeout should apply to individual jobs
+    if (this.type === 'relay') this.options.timeout = this.options.timeout * this.options.runs.length;
 
     if (isNew) {
       // this Proxy allows chaining methods while still keeping the
@@ -96,38 +90,11 @@ class Job {
   }
 
   /**
-   * Query redis for the specified job id and converts it to a new instance of Job.
-   * @static
-   * @param queue
-   * @param id
-   */
-  static fromId(queue, id) {
-    return queue.client.hget(queue.toKey('jobs'), id).then(data =>
-      Job.fromData(queue, id, data)
-    );
-  }
-
-  /**
-   * Converts a JSON string of a job's data to a new instance of Job
-   * @static
-   * @returns {Job | null}
-   * @param args
-   */
-  static fromData(...args) {
-    const obj = tryJSONParse(args[2]);
-    if (!obj) return null;
-    const job = new Job(args[0].core, args[1], obj.data, obj.options, args[0].name);
-    job.status = obj.data.status;
-    return job;
-  }
-
-  /**
    * Convert this Job instance to a json string.
    */
   toData() {
     return tryJSONStringify({
       id: this.id,
-      data: this.data,
       status: this.status,
       options: this.options,
     });
@@ -140,9 +107,10 @@ class Job {
   toObject(excludeData) {
     return {
       id: this.id,
-      data: excludeData ? 'hidden' : this.data,
       status: this.status,
-      options: this.options,
+      options: Object.assign({}, this.options, {
+        data: excludeData ? 'hidden' : this.data,
+      }),
     };
   }
 
@@ -151,42 +119,30 @@ class Job {
    * @private
    */
   _save() {
-    this.core.log.verbose(`Saving new job ${this.id} for ${this.queueName}`);
-    return this.core.client.addjob(
-      this._toQueueKey('jobs'),
-      this._toQueueKey('waiting'),
-      this._toQueueKey('id'),
-      this.toData(),
-      !!this.options.unique,
-      this.id).then((id) => {
+    this.core.log.verbose(`Saving new job ${this.id} for ${this.queue}`);
+
+    return this.core.client
+      .addjob(
+        this._toQueueKey('jobs'),
+        this._toQueueKey('waiting'),
+        this._toQueueKey('id'),
+        this.toData(),
+        !!this.options.unique,
+        this.id
+      )
+      .then((id) => {
         if (this.options.unique && id === 0) {
           this.status = 'duplicate';
           return Promise.reject(new Error(`ERR_DUPLICATE: Job ${this.id} already exists, save has been aborted.`));
         }
 
-        // TODO allow hooking into this event rather than us doing this poop here
-        if (process.env.KUBERNETES_PORT || process.env.KUBERNETES_SERVICE_HOST) {
-          /* eslint no-console: 0 */
-          const jobData = JSON.stringify(this.data.data || {});
-          console.log(JSON.stringify({
-            level: 'verbose',
-            type: 'redibox_job_created',
-            job: {
-              id: this.id.toString ? this.id.toString() : this.id,
-              runs: this.data.runs,
-              queue: this.queueName,
-              status: 'pending',
-              data: jobData.length > 4000 ? '<! job data too large to display !>' : this.data.data,
-            },
-          }));
-        }
+        // TODO Lifecycle afterJobCreate
+        this.core.log.verbose(`Saved job for ${this.queue}`);
 
-        this.core.log.verbose(`Saved job for ${this.queueName}`);
         this.id = id;
         this.status = 'saved';
         return Promise.resolve(this.toObject(true));
-      }
-    );
+      });
   }
 
   /**
@@ -200,7 +156,7 @@ class Job {
     // lock it so _autoSave doesn't pick it up but only deletes it from queue
     this._saved = true;
 
-    this.id = `${this.queueName}-${(this.options.unique ? sha1sum(this.data) : cuid())}`;
+    this.id = `${this.queue}${defaults.queueSeparator}${(this.options.unique ? sha1sum(this.data) : cuid())}`;
 
     if (this.options.notifySuccess) {
       this.options.notifySuccess = `job:${this.id}:success`;
@@ -313,9 +269,9 @@ class Job {
    */
   _toQueueKey(str) {
     if (this.core.cluster.isCluster()) {
-      return `${this.core.hooks.job.options.keyPrefix}:{${this.queueName}}:${str}`;
+      return `${this.core.hooks.job.options.keyPrefix}:{${this.queue}}:${str}`;
     }
-    return `${this.core.hooks.job.options.keyPrefix}:${this.queueName}:${str}`;
+    return `${this.core.hooks.job.options.keyPrefix}:${this.queue}:${str}`;
   }
 
   remove() {
