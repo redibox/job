@@ -29,6 +29,8 @@ The RediBox Job hook allows code to be run & distributed across many servers, wh
  - Capped history lists of jobs.
  - Queue stats (process times, average job waiting time etc).
  - Job tagging. Tag a job and track it throughout it's lifetime.
+ - JSON API via [redibox/api](https://github.com/redibox/api)
+ - Responsive UI via [redibox/ui](https://github.com/redibox/ui)
 
 
 
