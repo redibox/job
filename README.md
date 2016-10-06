@@ -9,6 +9,29 @@
 
 The RediBox Job hook allows code to be run & distributed across many servers, whilst being highly configurable. Works well with the [Schedule](https://github.com/redibox/schedule) hook.
 
+### Features
+ - Poll free design.
+ - Optional job TTL.
+ - Optional job retries.
+ - Optional job uniqueness.
+ - Queue rate limiting - X per X seconds.
+ - Standalone, Sentinel or Clustered Redis confgurations supported.
+ - Stalling prevention - gracefully resumes from shutdowns / crashes.
+ - Optional job statuses / progress sent via pubsub to the job creator.
+ - Flexible job runner functions - your functions can return a promise or just a synchronous result.
+ - Chain together jobs accross multiple queues and pass individual results onto the next job.
+   - Cancel the relay at any point on any of the jobs.
+   - Throttle stages of the relay by jumping to a throttled queue.
+ - Single queue job handler function or individual handlers per job using dot notated paths to global functions. 
+ 
+  
+### Coming in v2
+ - Capped history lists of jobs.
+ - Queue stats (process times, average job waiting time etc).
+ - Job tagging. Tag a job and track it throughout it's lifetime.
+
+
+
 ### Installation
 
 First ensure you have [RediBox](https://github.com/redibox/core) installed.
