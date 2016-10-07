@@ -305,6 +305,8 @@ module.exports = class Queue extends EventEmitter {
         job.options.timeout);
     }
 
+    job.setProgress = this._setJobProgress.bind(this, job);
+
     try {
       if (job.options.noBind || this.options.noBind) {
         promiseOrRes = handler(job);
@@ -346,6 +348,7 @@ module.exports = class Queue extends EventEmitter {
         id: job.id,
         worker: this.core.id,
         status: job.status,
+        progress: job.progress,
         data,
       },
       error: errorMessage ? {
@@ -602,6 +605,25 @@ module.exports = class Queue extends EventEmitter {
    */
   _restartProcessing() {
     this.clients.block.once('ready', this._queueTick.bind(this));
+  }
+
+  /**
+   * Update the job progress & notifiy any event listeners
+   * @param job
+   * @param value
+   * @param data
+   * @private
+   */
+  _setJobProgress(job, value, data) {
+    if (isNaN(value)) {
+      this.log.error(`Failed up update job (${job.id}) progress, ${value} is not a valid number.`);
+      return;
+    }
+
+    job.progress = value;
+    if (job.options.notifyProgress) {
+      this.core.pubsub.publish(job.options.notifyProgress, this._createJobEvent(null, data, job));
+    }
   }
 
   /**

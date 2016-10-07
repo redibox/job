@@ -25,6 +25,7 @@ class Job {
     this.ignoreProxy = false;
     this.queue = queue;
     this.type = Array.isArray(options.runs) ? 'relay' : 'single';
+    this.progress = 0;
     this._saved = false;
 
     // Timeout should apply to individual jobs
@@ -190,6 +191,11 @@ class Job {
       this.onceOfSubscriptions.push(`job:${this.id}:onRelayCancelled`);
     }
 
+    if (this.options.notifyProgress) {
+      this.options.notifyProgress = `job:${this.id}:onProgress`;
+      this.subscriptions.push(`job:${this.id}:onProgress`);
+    }
+
     if (this.subscriptions.length || this.onceOfSubscriptions.length) {
       if (!this.core.pubsub.options.subscriber) {
         return Promise.reject(
@@ -314,6 +320,12 @@ class Job {
     return this.proxy;
   }
 
+  onProgress(notify) {
+    this.options.notifyProgress = true;
+    this.onProgressCallback = notify;
+    return this.proxy;
+  }
+
   /**
    *
    * @param bool
@@ -356,7 +368,6 @@ class Job {
 
   /**
    * Re-save this job for the purpose of retrying it.
-   * @param cb
    */
   retry() {
     return this.core.client.multi()
