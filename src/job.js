@@ -26,7 +26,7 @@
 
 const cuid = require('cuid');
 const Promise = require('bluebird');
-const { noop, sha1sum, tryJSONStringify, tryJSONParse } = require('redibox');
+const { sha1sum, tryJSONStringify } = require('redibox');
 const defaults = require('./defaults');
 
 // TODO Move to default.js
@@ -235,7 +235,7 @@ class Job {
             return;
           }
 
-          return callback(payload.data);
+          callback(payload.data);
         },
         this.options.timeout + 1000
       ).then(() =>

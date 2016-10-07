@@ -103,7 +103,7 @@ module.exports = class JobHook extends BaseHook {
       this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
       this.log.error(`Job: ${args[0].options.runs}` || args[0].queue);
       args[1].stack = args[2].join('\n');
-      this.log.error(error);
+      this.log.error(args[1]);
       this.log.error('------------------------------------------------------');
       this.log.error('');
       return null;

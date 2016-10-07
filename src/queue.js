@@ -1,4 +1,4 @@
-const { deepGet, isObject, getTimeStamp, tryJSONParse, isFunction } = require('redibox');
+const { deepGet, getTimeStamp, tryJSONParse } = require('redibox');
 const Promise = require('bluebird');
 const EventEmitter = require('eventemitter3');
 
@@ -188,12 +188,6 @@ module.exports = class Queue extends EventEmitter {
     const stack = trimStack(error.stack);
 
     this.options.onJobFailure(job, error, stack);
-
-    if (isFunction(this.options.onJobFailure)) {
-      this.options.onJobFailure(job, error);
-    } else {
-
-    }
   }
 
   /**
@@ -289,7 +283,9 @@ module.exports = class Queue extends EventEmitter {
     preventStalling();
 
     if (job.options.timeout) {
-      this.handlerTracker[job.id].jobTimeout = setTimeout(this._handleJobError.bind(this, job, new Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)), job.options.timeout);
+      this.handlerTracker[job.id].jobTimeout = setTimeout(
+        this._handleJobError.bind(this, job, new Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)),
+        job.options.timeout);
     }
 
     try {
@@ -445,9 +441,9 @@ module.exports = class Queue extends EventEmitter {
    */
   _finishRelayJob(error, resolvedData, job) {
     const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayJobSuccess', 'notifyRelayCancelled', 'notifyRetry'];
-
+    var i = 0;
     // Remove notification flags for jobs so it only alerts once
-    for (var i = 0; i < notifications.length; i++) {
+    for (i; i < notifications.length; i++) {
       const notification = notifications[i];
 
       if (job.options[notification]) {
