@@ -1,4 +1,4 @@
-const { deepGet, getTimeStamp, tryJSONParse } = require('redibox');
+const { deepGet, getTimeStamp, tryJSONParse, isFunction } = require('redibox');
 const Promise = require('bluebird');
 const EventEmitter = require('eventemitter3');
 
@@ -54,6 +54,7 @@ module.exports = class Queue extends EventEmitter {
   constructor(options, core) {
     super();
     this.core = core;
+    this.hook = core.hooks.job;
     this.paused = false;
     this.started = false;
     this.throttled = false;
@@ -86,7 +87,9 @@ module.exports = class Queue extends EventEmitter {
    */
   getJobInstance(job) {
     const _job = tryJSONParse(job);
-    if (!_job) return null;
+    if (!_job) {
+      return null;
+    }
 
     return new Job(this.core, this.name, _job.options);
   }
@@ -197,14 +200,10 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _logJobFailure(job, jobError) {
-    if (this.options.mute) {
-      return;
-    }
-
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
 
-    this.options.onJobFailure(job, error, stack);
+    this.hook._onJobFailure(job, error, stack);
   }
 
   /**
@@ -215,17 +214,14 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _handleJobSuccess(job, resolvedData) {
-    // silently ignore any multiple calls
-    if (!this.handlerTracker[job.id] || this.handlerTracker[job.id].handled) {
-      return undefined;
+    if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
+      clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
+      clearTimeout(this.handlerTracker[job.id].jobTimeout);
+
+      this.handlerTracker[job.id].handled = true;
+
+      return this._finishJob(null, resolvedData, job);
     }
-
-    clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
-    clearTimeout(this.handlerTracker[job.id].jobTimeout);
-
-    this.handlerTracker[job.id].handled = true;
-
-    return this._finishJob(null, resolvedData, job);
   }
 
   /**
@@ -236,19 +232,17 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _handleJobError(job, error) {
-    if (!this.handlerTracker[job.id] || this.handlerTracker[job.id].handled) {
-      return undefined;
+    if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
+      clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
+      clearTimeout(this.handlerTracker[job.id].jobTimeout);
+
+      const _error = error || new Error('Job was rejected with no error.');
+
+      this.handlerTracker[job.id].handled = true;
+      this._logJobFailure(job, _error);
+
+      return this._finishJob(_error, null, job);
     }
-
-    clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
-    clearTimeout(this.handlerTracker[job.id].jobTimeout);
-
-    const _error = error || new Error('Job was rejected with no error.');
-
-    this.handlerTracker[job.id].handled = true;
-    this._logJobFailure(job, _error);
-
-    return this._finishJob(_error, null, job);
   }
 
   /**
@@ -257,7 +251,9 @@ module.exports = class Queue extends EventEmitter {
    * @returns {Promise}
    */
   _runJob(job) {
-    if (!job) return Promise.resolve();
+    if (!job) {
+      return Promise.resolve();
+    }
 
     const runs = job.options && job.options.runs && Array.isArray(job.options.runs) ? job.options.runs[0].runs : job.options.runs;
     let handler = null;
@@ -268,6 +264,19 @@ module.exports = class Queue extends EventEmitter {
       handler = deepGet(global, this.handler);
     } else {
       handler = this.handler;
+    }
+
+    if (!handler) {
+      return this._handleJobError(job, new Error(
+        `"${job.options.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
+             you must either specify a handler function via queue.process() or provide a valid handler
+             node global path in your job options 'handler', e.g. if you had a global function in
+            'global.sails.services.myservice' you'd specify the handler as 'sails.services.myservice.myHandler'.`
+      ));
+    }
+
+    if (!isFunction(handler)) {
+      return this._handleJobError(job, new Error(`Job handler for job ${job.id} is not a function.`));
     }
 
     // Create a class handler tracker for the job
@@ -286,15 +295,6 @@ module.exports = class Queue extends EventEmitter {
         }
       });
     };
-
-    if (!handler) {
-      return this.handleJobError(job, new Error(
-        `"${job.data.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
-             you must either specify a handler function via queue.process() or provide a valid handler
-             node global path in your job options 'handler', e.g. if you had a global function in
-            'global.sails.services.myservice' you'd specify the handler as 'sails.services.myservice.myHandler'.`
-      ));
-    }
 
     // start stalling monitoring
     preventStalling();
@@ -377,7 +377,7 @@ module.exports = class Queue extends EventEmitter {
         job.options.retries -= 1;
         job.status = 'retrying';
 
-        this.options.onJobRetry(error, job, data);
+        this.hook._onJobRetry(error, job, data);
 
         // TODO Move to subscribe (not to subscribeOnce)
         if (job.options._notifyRetry) {
@@ -435,11 +435,11 @@ module.exports = class Queue extends EventEmitter {
     this._updateJobStatus(error, data, job, multi);
 
     if (status === 'succeeded') {
-      this.options.onJobSuccess(job, data);
+      this.hook._onJobSuccess(job, data);
     }
 
     // emit success or failure event if we have listeners
-    if (error && job.options.notifyFailure) {
+    if (error && job.options.notifyFailure && job.status !== 'retrying') {
       this.core.pubsub.publish(job.options.notifyFailure, this._createJobEvent(error, data, job));
     } else if (job.options.notifySuccess) {
       this.core.pubsub.publish(job.options.notifySuccess, this._createJobEvent(error, data, job));
@@ -462,7 +462,7 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _finishRelayJob(error, resolvedData, job) {
-    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayCancelled', 'notifyRetry'];
+    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayStepCancelled', 'notifyRetry'];
     var i = 0;
     // Remove notification flags for jobs so it only alerts once
     for (i; i < notifications.length; i++) {
@@ -480,7 +480,7 @@ module.exports = class Queue extends EventEmitter {
     const status = error ? 'failed' : 'succeeded';
 
     if (status === 'succeeded') {
-      this.options.onRelayStepCancelled(error, job);
+      this.hook._onRelayStepSuccess(error, job);
       if (job.options._notifyRelayStepSuccess) {
         this.core.pubsub.publish(job.options._notifyRelayStepSuccess, this._createJobEvent(error, resolvedData, job));
       }
@@ -503,15 +503,15 @@ module.exports = class Queue extends EventEmitter {
     }
 
     if (resolvedData !== false && status === 'succeeded') {
-      this.options.onJobSuccess(job, resolvedData);
+      this.hook._onJobSuccess(job, resolvedData);
     }
 
     if (resolvedData === false) {
-      this.options.onRelayStepCancelled(error, job);
+      this.hook._onRelayStepCancelled(error, job);
     }
 
-    if (resolvedData === false && job.options._notifyRelayCancelled && job.type === 'relay') {
-      this.core.pubsub.publish(job.options._notifyRelayCancelled, this._createJobEvent(error, resolvedData, job));
+    if (resolvedData === false && job.options._notifyRelayStepCancelled && job.type === 'relay') {
+      this.core.pubsub.publish(job.options._notifyRelayStepCancelled, this._createJobEvent(error, resolvedData, job));
     }
 
     // we've just finished the last job in the relay
@@ -616,7 +616,9 @@ module.exports = class Queue extends EventEmitter {
    */
   _setJobProgress(job, value, data) {
     if (isNaN(value)) {
-      this.log.error(`Failed up update job (${job.id}) progress, ${value} is not a valid number.`);
+      if (!this.options.mute) {
+        this.log.error(`Failed up update job (${job.id}) progress, ${value} is not a valid number.`);
+      }
       return;
     }
 
