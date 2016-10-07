@@ -5,12 +5,12 @@ module.exports = {
   queues: [],
   enabled: true,
   keyPrefix: 'job',
-  startupDelay: 750,
+  startupDelay: 100,
   stallInterval: 15000,
   mute: false,
   queueSeparator: '|||',
   autoSave: {
-    maxJobs: 1000,
+    maxJobs: 200,
   },
 
   beforeJobCreate: null,

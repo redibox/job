@@ -144,9 +144,10 @@ module.exports = class JobHook extends BaseHook {
 
     if (!this.autoSaveImmediate) {
       this.autoSaveImmediate = setImmediate(this._autoSave.bind(this));
-    } else if (Object.keys(this.autoCreateQueue).length >= this.options.autoSave.maxJobs) {
-      this._autoSave();
     }
+    // else if (Object.keys(this.autoCreateQueue).length >= this.options.autoSave.maxJobs) {
+    //   this._autoSave();
+    // }
 
     return this.autoCreateQueue[ref];
   }
