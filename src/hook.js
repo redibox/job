@@ -1,4 +1,4 @@
-const { BaseHook, isObject } = require('redibox');
+const { BaseHook, isObject, isFunction } = require('redibox');
 const Promise = require('bluebird');
 
 const cuid = require('cuid');
@@ -55,6 +55,8 @@ module.exports = class JobHook extends BaseHook {
       this._createQueue(queue);
     }
 
+    this._setupLifecycleEvents();
+
     this.on('core:ready', () => {
       setTimeout(() => {
         for (let i = 0, len = this.options.queues.length; i < len; i++) {
@@ -64,6 +66,62 @@ module.exports = class JobHook extends BaseHook {
     });
 
     return Promise.resolve();
+  }
+
+  /**
+   * Overwrite any user lifecycle events with our own & finally call
+   * the users if it's a function
+   * @private
+   */
+  _setupLifecycleEvents() {
+    this.options.beforeJobCreate = function beforeJobCreate(...args) {
+      if (isFunction(defaults.beforeJobCreate)) {
+        return defaults.beforeJobCreate(...args);
+      }
+      return null;
+    };
+
+    this.options.afterJobCreate = function afterJobCreate(...args) {
+      if (isFunction(defaults.afterJobCreate)) {
+        return defaults.afterJobCreate(...args);
+      }
+      return null;
+    };
+
+    this.options.onJobSuccess = function onJobSuccess(...args) {
+      if (isFunction(defaults.onJobSuccess)) {
+        return defaults.onJobSuccess(...args);
+      }
+      return null;
+    };
+
+    this.options.onJobFailure = function onJobFailure(...args) {
+      if (isFunction(defaults.onJobFailure)) {
+        return defaults.onJobFailure(...args);
+      }
+      this.log.error('');
+      this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
+      this.log.error(`Job: ${args[0].options.runs}` || args[0].queue);
+      args[1].stack = args[2].join('\n');
+      this.log.error(error);
+      this.log.error('------------------------------------------------------');
+      this.log.error('');
+      return null;
+    };
+
+    this.options.onRelayJobCancelled = function onRelayJobCancelled(...args) {
+      if (isFunction(defaults.onRelayJobCancelled)) {
+        return defaults.onRelayJobCancelled(...args);
+      }
+      return null;
+    };
+
+    this.options.onJobRetry = function onJobRetry(...args) {
+      if (isFunction(defaults.onJobRetry)) {
+        return defaults.onJobRetry(...args);
+      }
+      return null;
+    };
   }
 
   /**
@@ -89,7 +147,11 @@ module.exports = class JobHook extends BaseHook {
       this.autoCreateQueue = {};
     }
 
+    this.options.beforeJobCreate(ref, queue, options);
+
     this.autoCreateQueue[ref] = new Job(this.core, queue, options, 'isNew');
+
+    this.options.afterJobCreate(this.autoCreateQueue[ref]);
 
     this.log.verbose(`Creating job for queue ${queue} with reference ${ref}`);
 

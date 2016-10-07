@@ -13,23 +13,11 @@ module.exports = {
     maxJobs: 1000,
   },
 
-  beforeJobCreate() {
-
-  },
-  afterJobCreate(job) {
-
-  },
-  onJobSuccess() {
-
-  },
-  onJobFailure() {
-
-  },
-  onRelayJobCancelled() {
-
-  },
-  onJobRetry() {
-
-  },
+  beforeJobCreate: null,
+  afterJobCreate: null,
+  onJobSuccess: null,
+  onJobFailure: null,
+  onRelayJobCancelled: null,
+  onJobRetry: null,
 };
 
