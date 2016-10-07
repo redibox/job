@@ -5,23 +5,24 @@ const { assert } = chai;
 describe('Queue', () => {
   it('Should create queues on init', (done) => {
     assert.isDefined(Hook.queues);
-    assert.isDefined(Hook.queues.test);
-    assert.isDefined(Hook.queues.test2);
+    assert.isDefined(Hook.queues.queue1);
+    assert.isDefined(Hook.queues.queue2);
+    assert.isDefined(Hook.queues.queue3);
     done();
   });
 
   it('Should return a Redis key value for an event name', (done) => {
-    assert.equal(Hook.queues.test.toEventName('foo'), 'queue:test:foo');
+    assert.equal(Hook.queues.queue1.toEventName('foo'), 'queue:queue1:foo');
     done();
   });
 
   it('Should return a Redis key value from a string value', (done) => {
-    assert.equal(Hook.queues.test.toKey('foo'), 'job:test:foo');
+    assert.equal(Hook.queues.queue1.toKey('foo'), 'job:queue1:foo');
     done();
   });
 
   it('Should return a queues status (waiting, active, succeeded, failed)', (done) => {
-    Hook.queues.test
+    Hook.queues.queue1
       .getStatus()
       .then(results => {
         assert.isDefined(results);
@@ -35,10 +36,10 @@ describe('Queue', () => {
   });
 
   it('Should stop the queue if it is already started', (done) => {
-    Hook.queues.test.stop();
-    assert.equal(Hook.queues.test.paused, true);
-    Hook.queues.test.start();
-    assert.equal(Hook.queues.test.paused, false);
+    Hook.queues.queue1.stop();
+    assert.equal(Hook.queues.queue1.paused, true);
+    Hook.queues.queue1.start();
+    assert.equal(Hook.queues.queue1.paused, false);
     done();
   });
 });

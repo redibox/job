@@ -15,9 +15,9 @@ const config = {
     enabled: true,
     mute: true,
     queues: [
-      'test',
-      { name: 'test2', handler: 'queueHandler' },
-      { name: 'test3',
+      'queue1',
+      { name: 'queue2', handler: 'queueHandler' },
+      { name: 'queue3',
         throttle: {
           limit: 2,
           seconds: 1,

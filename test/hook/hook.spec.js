@@ -24,6 +24,7 @@ describe('Core', () => {
     done();
   });
 
+  // New instance seems to closing connection on other RediBox instances?
   // it('Should mount to core.job', (done) => {
   //   const config = { hooks: {} };
   //   config.hooks[global.HOOK_NAME] = HookClass;
@@ -40,8 +41,9 @@ describe('Core', () => {
 
 describe('Job Hook', () => {
   it('Should create a blocker client per queue', () => {
-    assert.isDefined(Hook.queues.test.clients.block);
-    assert.isDefined(Hook.queues.test2.clients.block);
+    assert.isDefined(Hook.queues.queue1.clients.block);
+    assert.isDefined(Hook.queues.queue2.clients.block);
+    assert.isDefined(Hook.queues.queue3.clients.block);
     return Promise.resolve();
   });
 
