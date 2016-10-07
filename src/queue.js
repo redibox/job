@@ -66,6 +66,12 @@ module.exports = class Queue extends EventEmitter {
     this.handlerTracker = {};
   }
 
+  /**
+   * Returns a job by ID from Redis
+   * @param id
+   * @param cb
+   * @returns {*}
+   */
   getJobById(id, cb) {
     return this.client
       .hget(this.toKey('jobs'), id, (error, job) => {
@@ -73,6 +79,11 @@ module.exports = class Queue extends EventEmitter {
       });
   }
 
+  /**
+   * Returns an instance of a Job
+   * @param job
+   * @returns {null}
+   */
   getJobInstance(job) {
     const _job = tryJSONParse(job);
     if (!_job) return null;
@@ -80,6 +91,9 @@ module.exports = class Queue extends EventEmitter {
     return new Job(this.core, this.name, _job.options);
   }
 
+  /**
+   * Start the queue
+   */
   start() {
     if (!this.started) {
       this.paused = false;
@@ -87,6 +101,9 @@ module.exports = class Queue extends EventEmitter {
     }
   }
 
+  /**
+   * Stop/pause the queue
+   */
   stop() {
     if (this.started) {
       this.paused = true;
