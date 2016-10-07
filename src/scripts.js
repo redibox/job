@@ -14,10 +14,6 @@ module.exports = {
 
         local jobId = ARGV[3]
 
-        if jobId == "" then
-          jobId = redis.call("incr", KEYS[3])
-        end
-
         -- if unique enabled
         if ARGV[2] == "true" then
           local exists = redis.call("hsetnx", KEYS[1], jobId, ARGV[1])
