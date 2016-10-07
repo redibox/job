@@ -1,4 +1,4 @@
-const { deepGet, isObject, getTimeStamp, tryJSONParse } = require('redibox');
+const { deepGet, isObject, getTimeStamp, tryJSONParse, isFunction } = require('redibox');
 const Promise = require('bluebird');
 const EventEmitter = require('eventemitter3');
 
@@ -31,7 +31,7 @@ function trimStack(errorStack) {
     // exclude waterline
     if (row.includes('waterline/lib')) continue;
 
-    // exclude waterline
+    // exclude async
     if (row.includes('async/lib')) continue;
 
     // exclude timers.js
@@ -63,6 +63,7 @@ module.exports = class Queue extends EventEmitter {
     this.handler = options.handler || null;
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this);
+    this.handlerTracker = {};
   }
 
   getJobById(id, cb) {
@@ -130,6 +131,28 @@ module.exports = class Queue extends EventEmitter {
   }
 
   /**
+   * Start the queue.
+   */
+  beginWorking() {
+    if (this.started || !this.options.enabled) {
+      this.log.info(`Queue ${this.name} is currently disabled.`);
+      return;
+    }
+
+    this.queued = 0;
+    this.running = 0;
+    this.started = true;
+
+    this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.options.concurrency}.`);
+
+    this.clients.block.once('error', this._restartProcessing.bind(this));
+    this.clients.block.once('close', this._restartProcessing.bind(this));
+
+    this.checkStalledJobs.bind(this)();
+    this._queueTick.bind(this)();
+  }
+
+  /**
    *
    * @returns {Promise}
    */
@@ -164,7 +187,57 @@ module.exports = class Queue extends EventEmitter {
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
 
-    // TODO log error with custom error handler (see slack)
+    this.options.onJobFailure(job, error, stack);
+
+    if (isFunction(this.options.onJobFailure)) {
+      this.options.onJobFailure(job, error);
+    } else {
+
+    }
+  }
+
+  /**
+   * Handle a successful job completion
+   * @param job
+   * @param resolvedData The return value or resolved value of the jov
+   * @returns {*}
+   * @private
+   */
+  _handleJobSuccess(job, resolvedData) {
+    // silently ignore any multiple calls
+    if (!this.handlerTracker[job.id] || this.handlerTracker[job.id].handled) {
+      return undefined;
+    }
+
+    clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
+    clearTimeout(this.handlerTracker[job.id].jobTimeout);
+
+    this.handlerTracker[job.id].handled = true;
+
+    return this._finishJob(null, resolvedData, job);
+  }
+
+  /**
+   * Handle a job promise rejection or thrown error
+   * @param job
+   * @param error
+   * @returns {*}
+   * @private
+   */
+  _handleJobError(job, error) {
+    if (!this.handlerTracker[job.id] || this.handlerTracker[job.id].handled) {
+      return undefined;
+    }
+
+    clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
+    clearTimeout(this.handlerTracker[job.id].jobTimeout);
+
+    const _error = error || new Error('Job was rejected with no error.');
+
+    this.handlerTracker[job.id].handled = true;
+    this._logJobFailure(job, _error);
+
+    return this._finishJob(_error, null, job);
   }
 
   /**
@@ -175,7 +248,7 @@ module.exports = class Queue extends EventEmitter {
   _runJob(job) {
     if (!job) return Promise.resolve();
 
-    const runs = job.options && job.options.runs && Array.isArray(job.options.runs) ? job.options.runs[0] : job.options.runs;
+    const runs = job.options && job.options.runs && Array.isArray(job.options.runs) ? job.options.runs[0].runs : job.options.runs;
     let handler = null;
 
     if (runs) {
@@ -186,71 +259,37 @@ module.exports = class Queue extends EventEmitter {
       handler = this.handler;
     }
 
-    let preventStallingTimeout;
-    let handled = false;
+    // Create a class handler tracker for the job
+    this.handlerTracker[job.id] = {
+      jobTimeout: null,
+      preventStallingTimeout: null,
+      handled: false,
+    };
+
     let promiseOrRes;
-
-    // Handle an "OK" response from the promise
-    const handleOK = (resolvedData) => {
-      // silently ignore any multiple calls
-      if (handled) return undefined;
-
-      clearTimeout(preventStallingTimeout);
-      handled = true;
-
-      // only relay to next job if user did not resolve 'false' on current job
-      if (job.type === 'relay' && resolvedData !== false) {
-        return this._finishRelayJob(null, resolvedData, job);
-      }
-
-      return this._finishSingleJob(null, resolvedData, job);
-    };
-
-    // Handle any errors returned
-    const handleError = (jobError) => {
-      clearTimeout(preventStallingTimeout);
-
-      const _error = jobError || new Error('Job was rejected with no error.');
-      // silently ignore any multiple calls
-      if (handled) {
-        return undefined;
-      }
-
-      handled = true;
-
-      this._logJobFailure(job, _error);
-
-      if (job.type === 'relay') {
-        return this._finishRelayJob(_error, null, job);
-      }
-
-      return this._finishSingleJob(_error, null, job);
-    };
 
     const preventStalling = () => {
       this.client.srem(this.toKey('stalling'), job.id, () => {
-        if (!handled) {
-          preventStallingTimeout = setTimeout(preventStalling, this.options.stallInterval / 3);
+        if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
+          this.handlerTracker[job.id].preventStallingTimeout = setTimeout(preventStalling, this.options.stallInterval / 3);
         }
       });
     };
 
     if (!handler) {
-      return handleError(
-        new Error(
-          `"${job.data.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
+      return this.handleJobError(job, new Error(
+        `"${job.data.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
              you must either specify a handler function via queue.process() or provide a valid handler
              node global path in your job options 'handler', e.g. if you had a global function in
             'global.sails.services.myservice' you'd specify the handler as 'sails.services.myservice.myHandler'.`
-        )
-      );
+      ));
     }
 
     // start stalling monitoring
     preventStalling();
 
     if (job.options.timeout) {
-      setTimeout(handleError.bind(null, Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)), job.options.timeout);
+      this.handlerTracker[job.id].jobTimeout = setTimeout(this._handleJobError.bind(this, job, new Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)), job.options.timeout);
     }
 
     try {
@@ -260,18 +299,20 @@ module.exports = class Queue extends EventEmitter {
         promiseOrRes = handler.bind(job, job)(job);
       }
     } catch (e) {
-      return handleError(e);
+      return this._handleJobError.bind(this)(job, e);
     }
 
     if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
-      return promiseOrRes.then(handleOK, handleError).catch(handleError);
+      return promiseOrRes
+        .then(this._handleJobSuccess.bind(this, job), this._handleJobError.bind(this, job))
+        .catch(this._handleJobError.bind(this, job));
     }
 
-    return handleOK(promiseOrRes);
+    return this._handleJobSuccess.bind(this)(job, promiseOrRes);
   }
 
   /**
-   *
+   * Creates job data to pass back through PUBSUB
    * @param error
    * @param data
    * @param job
@@ -279,14 +320,25 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _createJobEvent(error, data, job) {
+    let errorMessage = null;
+
+    if (error && error.message) {
+      errorMessage = error.message;
+    } else if (error) {
+      errorMessage = error;
+    }
+
     return {
-      job: Object.assign({
+      job: {
         id: job.id,
-        worker_id: this.core.id,
-        status: error ? 'failed' : 'succeeded',
-      }, job.data),
-      error,
-      output: data,
+        worker: this.core.id,
+        status: job.status,
+        data,
+      },
+      error: errorMessage ? {
+        message: errorMessage,
+        timeout: !errorMessage ? false : errorMessage.includes('timed out'),
+      } : null,
     };
   }
 
@@ -308,6 +360,14 @@ module.exports = class Queue extends EventEmitter {
       if (job.options.retries > 0) {
         job.options.retries -= 1;
         job.status = 'retrying';
+
+        this.options.onJobRetry(error, job, data);
+
+        // TODO Move to subscribe (not to subscribeOnce)
+        if (job.options._notifyRetry) {
+          this.core.pubsub.publish(job.options._notifyRetry, this._createJobEvent(error, data, job));
+        }
+
         multi.hset(this.toKey('jobs'), job.id, job.toData());
         multi.lpush(this.toKey('waiting'), job.id);
       } else {
@@ -326,8 +386,19 @@ module.exports = class Queue extends EventEmitter {
       // multi.hset(this.toKey('jobs'), job.id, job.toData());
       // multi.sadd(this.toKey('succeeded'), job.id);
 
-      // TODO handle job success error
+      this.options.onJobSuccess(job, data);
     }
+  }
+
+  _finishJob(error, resolvedData, job) {
+    delete this.handlerTracker[job.id];
+
+    // only relay to next job if user did not resolve 'false' on current job
+    if (job.type === 'relay') {
+      return this._finishRelayJob(error, resolvedData, job);
+    }
+
+    return this._finishSingleJob(error, resolvedData, job);
   }
 
   /**
@@ -340,6 +411,13 @@ module.exports = class Queue extends EventEmitter {
   _finishSingleJob(error, data, job) {
     const multi = this.client.multi();
     const status = error ? 'failed' : 'succeeded';
+
+    // Attach job _notifyRetry to job
+    if (job.options.notifyRetry) {
+      job.options._notifyRetry = job.options.notifyRetry;
+      delete job.options.notifyRetry;
+    }
+
     this._updateJobStatus(error, data, job, multi);
 
     // emit success or failure event if we have listeners
@@ -366,46 +444,65 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _finishRelayJob(error, resolvedData, job) {
-    let nextQueue = this.name;
+    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayJobSuccess', 'notifyRelayCancelled', 'notifyRetry'];
+
+    // Remove notification flags for jobs so it only alerts once
+    for (var i = 0; i < notifications.length; i++) {
+      const notification = notifications[i];
+
+      if (job.options[notification]) {
+        job.options[`_${notification}`] = job.options[notification];
+        delete job.options[notification];
+      }
+    }
+
     job.options.runs.shift();
     const nextJob = job.options.runs[0];
     const multi = this.client.multi();
     const status = error ? 'failed' : 'succeeded';
 
+    // Emit rely Job Step successful
+    // TODO Needs use of subscribe (not subscribeOnce)
+    // if (status === 'succeeded' && job.options._notifyRelayJobSuccess) {
+    //   this.core.pubsub.publish(job.options._notifyRelayJobSuccess, this._createJobEvent(error, resolvedData, job));
+    // }
+
     this._updateJobStatus(error, resolvedData, job, multi);
 
     // If no relay error or there are more jobs
-    if (!(job.options.runs.length === 0 || !!error)) {
-      if (isObject(nextJob)) {
-        nextQueue = nextJob.queue;
-        job.options.runs[0] = nextJob.runs;
-      }
+    if (!(job.options.runs.length === 0 || !!error) && resolvedData !== false) {
+      job.options.data = resolvedData;
 
       return new Promise((resolve, reject) => {
-        return this.core.hooks.job
-          .create(nextQueue, job.options)
-          .then(() => {
-            multi.exec((errMulti) => {
-              if (errMulti) return reject(errMulti);
-              return resolve({ status, result: error || resolvedData });
-            });
-          });
+        this.core.hooks.job.create(nextJob.queue, job.options);
+
+        return multi.exec((errMulti) => {
+          if (errMulti) return reject(errMulti);
+          return resolve({ status, result: error || resolvedData });
+        });
       });
+    }
+
+    if (resolvedData === false) {
+      this.options.onRelayJobCancelled(error, job);
+    }
+
+    if (resolvedData === false && job.options._notifyRelayCancelled && job.type === 'relay') {
+      this.core.pubsub.publish(job.options._notifyRelayCancelled, this._createJobEvent(error, resolvedData, job));
     }
 
     // we've just finished the last job in the relay
     // emit success or failure event if we have listeners
-    // TODO handle notifyFailure
-    if (error && job.data.initialJob.options.notifyFailure) {
-      this.core.pubsub.publish(job.data.initialJob.options.notifyFailure, this._createJobEvent(error, resolvedData, job));
-    } else if (job.data.initialJob.options.notifySuccess) {
-      this.core.pubsub.publish(job.data.initialJob.options.notifySuccess, this._createJobEvent(error, resolvedData, job));
+    if (error && job.options._notifyFailure) {
+      this.core.pubsub.publish(job.options._notifyFailure, this._createJobEvent(error, resolvedData, job));
+    } else if (job.options._notifySuccess) {
+      this.core.pubsub.publish(job.options._notifySuccess, this._createJobEvent(error, resolvedData, job));
     }
 
     return new Promise((resolve, reject) => {
       return multi.exec((errMulti) => {
         if (errMulti) return reject(errMulti);
-        return resolve({ status, result: error || data });
+        return resolve({ status, result: error || resolvedData });
       });
     });
   }
@@ -465,14 +562,17 @@ module.exports = class Queue extends EventEmitter {
     return this._getNextJob((err, job) => {
       if (err) return this._onLocalTickError.bind(this)(err);
       this.running += 1;
-      console.log('GOT FROM DA Q')
+
       // queue more jobs if within limit
       if ((this.running + this.queued) < this.options.concurrency) {
         // concurrency is a little pointless right now if we're throttling jobs
         if (!this.options.throttle) setImmediate(this._queueTick.bind(this));
       }
-      console.log('RUNNING IT')
-      return this._runJob(job).then(this._onLocalTickComplete.bind(this)).catch(this._onLocalTickComplete.bind(this));
+
+      return this
+        ._runJob(job)
+        .then(this._onLocalTickComplete.bind(this))
+        .catch(this._onLocalTickComplete.bind(this));
     });
   }
 
@@ -482,28 +582,6 @@ module.exports = class Queue extends EventEmitter {
    */
   _restartProcessing() {
     this.clients.block.once('ready', this._queueTick.bind(this));
-  }
-
-  /**
-   * Start the queue.
-   */
-  beginWorking() {
-    if (this.started || !this.options.enabled) {
-      this.log.info(`Queue ${this.name} is currently disabled.`);
-      return;
-    }
-
-    this.queued = 0;
-    this.running = 0;
-    this.started = true;
-
-    this.log.verbose(`Queue '${this.name}' - started with a concurrency of ${this.options.concurrency}.`);
-
-    this.clients.block.once('error', this._restartProcessing.bind(this));
-    this.clients.block.once('close', this._restartProcessing.bind(this));
-
-    this.checkStalledJobs.bind(this)();
-    this._queueTick.bind(this)();
   }
 
   /**
