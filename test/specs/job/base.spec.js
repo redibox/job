@@ -5,7 +5,54 @@ const { assert } = chai;
 /**
  * Spec the basic job functions
  */
-describe('Job Basics', () => {
+describe('Base Job Spec', () => {
+  it('Should trigger hook beforeJobCreate function', (done) => {
+    let beforeCreate = false;
+    global.beforeJobCreate = () => {
+      beforeCreate = true;
+    };
+
+    global.singleJob = () => {
+      assert.equal(beforeCreate, true);
+      return Promise.resolve().then(() => done());
+    };
+    Hook
+      .create('queue1', {
+        runs: 'singleJob',
+        data: {
+          bar: 'foo'
+        }
+      });
+  });
+
+  it('Should trigger hook afterJobCreate function', (done) => {
+    let afterCreate = false;
+    global.afterJobCreate = () => {
+      afterCreate = true;
+      done();
+    };
+
+    global.doop = null;
+    Hook
+      .create('queue1', {
+        runs: 'doop',
+        data: {
+          bar: 'foo'
+        }
+      });
+  });
+
+  it('Should only allow a string as the first argument (queue)', (done) => {
+    assert.equal(Hook.create(), null);
+    assert.equal(Hook.create(1337), null);
+    done();
+  });
+
+  it('Should only allow an object as the second argument (options)', (done) => {
+    assert.equal(Hook.create('queue1', 1337), null);
+    done();
+  });
+
   it('Should run a single job', (done) => {
     global.singleJob = function singleJob() {
       done();
@@ -18,7 +65,7 @@ describe('Job Basics', () => {
   });
 
   it('Should bind the Job class to the job', (done) => {
-    global.singleJob = function queueHandler() {
+    global.singleJob = function singleJob() {
       assert.equal(this.constructor.name, 'Job');
       done();
     };
@@ -29,7 +76,7 @@ describe('Job Basics', () => {
   });
 
   it('Should NOT bind the Job class to the job when noBind option is enabled', (done) => {
-    global.singleJob = function queueHandler() {
+    global.singleJob = function singleJob() {
       assert.equal(this.constructor.name, 'Object');
       done();
     };
@@ -206,7 +253,7 @@ describe('Job Basics', () => {
     }
   });
 
-  it('Should run the job using the queue handler', (done) => {
+  it('Should run the job using the queue string path handler', (done) => {
     global.queueHandler = function queueHandler(job) {
       assert.equal(job.data.foo, 'bar');
       done();
@@ -219,9 +266,22 @@ describe('Job Basics', () => {
     });
   });
 
+  it('Should run the job using the queue function handler', (done) => {
+    global.queue4Handler = function queue4Handler(job) {
+      assert.equal(job.data.foo, 'bar');
+      done();
+    };
+
+    Hook.create('queue4', {
+      data: {
+        foo: 'bar',
+      },
+    });
+  });
+
   it('Should retry if job fails and retry option is set', (done) => {
     let count = 0;
-    global.singleJob = function queueHandler() {
+    global.singleJob = function singleJob() {
       count++;
       if (count === 2) {
         return done();
@@ -235,7 +295,7 @@ describe('Job Basics', () => {
     });
   });
 
-  it('Should thottle the jobs to only allow 2 jobs to run every 1 seconds', function(done) { // eslint-disable-line
+  it('Should thottle the jobs to only allow 2 jobs to run every 1 seconds', function (done) { // eslint-disable-line
     this.timeout(4000);
     const seconds = 1;
     const limit = 2;
@@ -272,184 +332,32 @@ describe('Job Basics', () => {
       });
     }
   });
-});
 
-/**
- * Spec Job PUBSUB events
- */
-describe('Job PUBSUB Events', () => {
-  it('Should emit a success event on single job completion', (done) => {
-    global.singleJob = function singleJob() {
-      return Promise.resolve(this.data);
-    };
-
-    Hook.create('queue1', {
-      runs: 'singleJob',
-      data: {
-        success: true,
-      },
-    }).onSuccess(payload => {
-      assert.equal(payload.job.data.success, true);
-      done();
-    });
-  });
-
-  it('Should emit a success event once all relay jobs have completed', (done) => {
-    global.relayJob = function relayJob(job) {
-      return Promise.resolve(job.data);
-    };
-
-    Hook.create('queue1', {
-      runs: ['relayJob', 'relayJob', 'relayJob'],
-      data: {
-        success: true,
-      },
-    }).onSuccess(payload => {
-      assert.equal(payload.job.data.success, true);
-      done();
-    });
-  });
-
-  it('Should emit failure event on single job failure', (done) => {
-    let count = 0;
-    global.relayJob = function relayJob() {
-      count++;
-      throw new Error('foo');
-    };
-
-    Hook.create('queue1', {
-      runs: 'relayJob',
-    }).onFailure(payload => {
-      assert.equal(payload.error.message, 'foo');
-      done();
-    });
-  });
-
-  it('Should emit failure event on relay job failure and not continue', (done) => {
-    let count = 0;
-    global.relayJob = function relayJob() {
-      count++;
-      return Promise.resolve();
-    };
-
-    global.relayJobError = function relayJob() {
-      throw new Error('foo');
-    };
-
-    Hook.create('queue1', {
-      runs: ['relayJob', 'relayJobError', 'relayJob'],
-    }).onFailure(payload => {
-      assert.equal(count, 1);
-      assert.equal(payload.error.message, 'foo');
-      done();
-    });
-  });
-
-  it('Should emit a retry event on singleJob retry', (done) => {
-    let count = 0;
-    global.singleJob = function singleJob() {
-      count++;
-      if (count === 1) {
-        throw 'foo';
-      }
-
+  it('Should allow progress to be set', (done) => {
+    global.singleJob = function singleJob(job) {
+      job.setProgress(1337);
       return Promise.resolve();
     };
 
     Hook.create('queue1', {
       runs: 'singleJob',
-      retries: 1,
-    }).onRetry(payload => {
-      console.log('RETRY!!!!')
-      assert.equal(count, 1);
-      assert.equal(payload.error.message, 'foo');
+    }).onSuccess((result) => {
+      assert.equal(result.job.progress, 1337);
       done();
     });
   });
 
-  // it('Should stop relay jobs mid chain by returning false', (done) => {
-  //   let count = 0;
-  //   global.relayJob = function queueHandler() {
-  //     count++;
-  //     if (count === 2) {
-  //       return Promise.resolve(false);
-  //     }
-  //     return Promise.resolve();
-  //   };
-  //
-  //   Hook.create('test', {
-  //     runs: ['relayJob', 'relayJob', 'relayJob'],
-  //   }).onRelayCancelled(() => {
-  //     assert.equal(count, 2);
-  //     done();
-  //   });
-  // });
+  it('Should only allow a number to be set as progress (👵)', (done) => {
+    global.singleJob = function singleJob(job) {
+      job.setProgress('isNotUrNan');
+      return Promise.resolve();
+    };
 
-  // TODO https://github.com/redibox/job/issues/8
-  // it('Should allow the instance of the job to retry itself', (done) => {
-  //   let count = 0;
-  //   global.singleJob = function queueHandler() {
-  //     console.log('doing job')
-  //     count++;
-  //     if (count === 2) {
-  //       return done();
-  //     }
-  //     return Promise.reject();
-  //   };
-  //
-  //   const job = Hook.create('test', {
-  //     runs: 'singleJob',
-  //   }).onFailure(() => {
-  //     console.log(job.retry)
-  //     job.retry();
-  //   });
-  // });
-
-  // TODO https://github.com/redibox/job/issues/10
-  // it('Should emit a failure if job timeout is set and hit', (done) => {
-  //   global.singleJob = function singleJob() {
-  //     return new Promise((resolve) => {
-  //       setTimeout(resolve, 2000);
-  //     });
-  //   };
-  //
-  //   Hook.create('test', {
-  //     runs: 'singleJob',
-  //   }, {
-  //     timeout: 1000,
-  //   }).onFailure(job => {
-  //     assert.equal(job.error.timeout, true);
-  //     done();
-  //   });
-  // });
-
-  // TODO https://github.com/redibox/job/issues/9
-  // it('Should retry the job if timeout is reached and retries is set', function(done) {
-  //   this.timeout(10000);
-  //   let count = 0;
-  //   global.singleJob = function queueHandler(job) {
-  //     count++;
-  //     console.log('Running', count)
-  //     if (count === 1) {
-  //       return new Promise((resolve) => {
-  //         setTimeout(() => { console.log('RESOLVED TIMEOUT')
-  //           return resolve()},
-  //             2000);
-  //       });
-  //     } else {
-  //       console.log('DONNNEEEEEE')
-  //       return done();
-  //     }
-  //   };
-  //
-  //   Hook.create('test', {
-  //     runs: 'singleJob',
-  //   }, {
-  //     retries: 5,
-  //     timeout: 1000,
-  //   });
-  // });
-
-
-
+    Hook.create('queue1', {
+      runs: 'singleJob',
+    }).onSuccess((result) => {
+      assert.equal(result.job.progress, 0);
+      done();
+    });
+  });
 });
