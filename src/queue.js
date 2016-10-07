@@ -1,4 +1,4 @@
-const { deepGet, getTimeStamp, tryJSONParse, isFunction } = require('redibox');
+const { deepGet, getTimeStamp, tryJSONStringify, tryJSONParse, isFunction } = require('redibox');
 const Promise = require('bluebird');
 const EventEmitter = require('eventemitter3');
 
@@ -76,22 +76,19 @@ module.exports = class Queue extends EventEmitter {
   getJobById(id, cb) {
     return this.client
       .hget(this.toKey('jobs'), id, (error, job) => {
-        cb(error, this.getJobInstance(job));
+        const _job = tryJSONParse(job);
+
+        if (!_job) {
+          return cb(error, null);
+        }
+
+        _job.core = this.core;
+        _job.data = _job.options.data;
+
+        // attach virtual methods
+        _job.setProgress = this._setJobProgress.bind(this, _job);
+        return cb(error, _job);
       });
-  }
-
-  /**
-   * Returns an instance of a Job
-   * @param job
-   * @returns {null}
-   */
-  getJobInstance(job) {
-    const _job = tryJSONParse(job);
-    if (!_job) {
-      return null;
-    }
-
-    return new Job(this.core, this.name, _job.options);
   }
 
   /**
@@ -202,7 +199,6 @@ module.exports = class Queue extends EventEmitter {
   _logJobFailure(job, jobError) {
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
-
     this.hook._onJobFailure(job, error, stack);
   }
 
@@ -217,9 +213,7 @@ module.exports = class Queue extends EventEmitter {
     if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
       clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
       clearTimeout(this.handlerTracker[job.id].jobTimeout);
-
       this.handlerTracker[job.id].handled = true;
-
       return this._finishJob(null, resolvedData, job);
     }
   }
@@ -235,12 +229,9 @@ module.exports = class Queue extends EventEmitter {
     if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
       clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
       clearTimeout(this.handlerTracker[job.id].jobTimeout);
-
       const _error = error || new Error('Job was rejected with no error.');
-
       this.handlerTracker[job.id].handled = true;
       this._logJobFailure(job, _error);
-
       return this._finishJob(_error, null, job);
     }
   }
@@ -305,8 +296,6 @@ module.exports = class Queue extends EventEmitter {
         job.options.timeout);
     }
 
-    job.setProgress = this._setJobProgress.bind(this, job);
-
     try {
       if (job.options.noBind || this.options.noBind) {
         promiseOrRes = handler(job);
@@ -360,6 +349,18 @@ module.exports = class Queue extends EventEmitter {
 
   /**
    *
+   * @param job
+   * @private
+   */
+  _jobToData(job) {
+    delete job.core;
+    delete job.data;
+    delete job.setProgress;
+    return tryJSONStringify(job);
+  }
+
+  /**
+   *
    * @param error
    * @param data
    * @param job
@@ -375,6 +376,7 @@ module.exports = class Queue extends EventEmitter {
     if (status === 'failed') {
       if (job.options.retries > 0) {
         job.options.retries -= 1;
+
         job.status = 'retrying';
 
         this.hook._onJobRetry(error, job, data);
@@ -384,7 +386,7 @@ module.exports = class Queue extends EventEmitter {
           this.core.pubsub.publish(job.options._notifyRetry, this._createJobEvent(error, data, job));
         }
 
-        multi.hset(this.toKey('jobs'), job.id, job.toData());
+        multi.hset(this.toKey('jobs'), job.id, this._jobToData(job));
         multi.lpush(this.toKey('waiting'), job.id);
       } else {
         job.status = 'failed';

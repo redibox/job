@@ -64,16 +64,16 @@ describe('Base Job Spec', () => {
       });
   });
 
-  it('Should bind the Job class to the job', (done) => {
-    global.singleJob = function singleJob() {
-      assert.equal(this.constructor.name, 'Job');
-      done();
-    };
-
-    Hook.create('queue1', {
-      runs: 'singleJob',
-    });
-  });
+  // it('Should bind the Job class to the job', (done) => {
+  //   global.singleJob = function singleJob() {
+  //     assert.equal(this.constructor.name, 'Job');
+  //     done();
+  //   };
+  //
+  //   Hook.create('queue1', {
+  //     runs: 'singleJob',
+  //   });
+  // });
 
   it('Should NOT bind the Job class to the job when noBind option is enabled', (done) => {
     global.singleJob = function singleJob() {
@@ -281,7 +281,7 @@ describe('Base Job Spec', () => {
 
   it('Should retry if job fails and retry option is set', (done) => {
     let count = 0;
-    global.singleJob = function singleJob() {
+    global.singleJobRetry = function singleJobRetry() {
       count++;
       if (count === 2) {
         return done();
@@ -290,12 +290,12 @@ describe('Base Job Spec', () => {
     };
 
     Hook.create('queue1', {
-      runs: 'singleJob',
+      runs: 'singleJobRetry',
       retries: 2,
     });
   });
 
-  it('Should thottle the jobs to only allow 2 jobs to run every 1 seconds', function (done) { // eslint-disable-line
+  it('Should throttle the jobs to only allow 2 jobs to run every 1 seconds', function (done) { // eslint-disable-line
     this.timeout(4000);
     const seconds = 1;
     const limit = 2;

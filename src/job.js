@@ -71,12 +71,11 @@ class Job {
   toData() {
     return tryJSONStringify({
       id: this.id,
+      progress: 0,
+      type: this.type,
       status: this.status,
-      options: Object.assign({}, this.options, {
-        data: this.data,
-        id: this.id,
-        status: this.status,
-      }),
+      queue: this.queue,
+      options: this.options,
     });
   }
 
