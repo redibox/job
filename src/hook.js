@@ -25,6 +25,8 @@ module.exports = class JobHook extends BaseHook {
       return Promise.resolve();
     }
 
+    this._setupLifecycleEvents();
+
     for (let i = 0, len = this.options.queues.length; i < len; i++) {
       let queue = this.options.queues[i];
 
@@ -55,8 +57,6 @@ module.exports = class JobHook extends BaseHook {
       this._createQueue(queue);
     }
 
-    this._setupLifecycleEvents();
-
     this.on('core:ready', () => {
       setTimeout(() => {
         for (let i = 0, len = this.options.queues.length; i < len; i++) {
@@ -74,31 +74,32 @@ module.exports = class JobHook extends BaseHook {
    * @private
    */
   _setupLifecycleEvents() {
-    this.options.beforeJobCreate = function beforeJobCreate(...args) {
-      if (isFunction(defaults.beforeJobCreate)) {
-        return defaults.beforeJobCreate(...args);
-      }
+    const beforeJobCreate = this.options.beforeJobCreate;
+    const afterJobCreate = this.options.afterJobCreate;
+    const onJobSuccess = this.options.onJobSuccess;
+    const onJobFailure = this.options.onJobFailure;
+    const onJobRetry = this.options.onJobRetry;
+    const onRelayStepSuccess = this.options.onRelayStepSuccess;
+    const onRelayStepCancelled = this.options.onRelayStepCancelled;
+
+    this.options.beforeJobCreate = (...args) => {
+      if (isFunction(beforeJobCreate)) return beforeJobCreate(...args);
       return null;
     };
 
-    this.options.afterJobCreate = function afterJobCreate(...args) {
-      if (isFunction(defaults.afterJobCreate)) {
-        return defaults.afterJobCreate(...args);
-      }
+    this.options.afterJobCreate = (...args) => {
+      if (isFunction(afterJobCreate)) return afterJobCreate(...args);
       return null;
     };
 
-    this.options.onJobSuccess = function onJobSuccess(...args) {
-      if (isFunction(defaults.onJobSuccess)) {
-        return defaults.onJobSuccess(...args);
-      }
+    this.options.onJobSuccess = (...args) => {
+      if (isFunction(onJobSuccess)) return onJobSuccess(...args);
       return null;
     };
 
-    this.options.onJobFailure = function onJobFailure(...args) {
-      if (isFunction(defaults.onJobFailure)) {
-        return defaults.onJobFailure(...args);
-      }
+    this.options.onJobFailure = (...args) => {
+      if (isFunction(onJobFailure)) return onJobFailure(...args);
+
       this.log.error('');
       this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
       this.log.error(`Job: ${args[0].options.runs}` || args[0].queue);
@@ -109,17 +110,18 @@ module.exports = class JobHook extends BaseHook {
       return null;
     };
 
-    this.options.onRelayJobCancelled = function onRelayJobCancelled(...args) {
-      if (isFunction(defaults.onRelayJobCancelled)) {
-        return defaults.onRelayJobCancelled(...args);
-      }
+    this.options.onJobRetry = (...args) => {
+      if (isFunction(onJobRetry)) return onJobRetry(...args);
       return null;
     };
 
-    this.options.onJobRetry = function onJobRetry(...args) {
-      if (isFunction(defaults.onJobRetry)) {
-        return defaults.onJobRetry(...args);
-      }
+    this.options.onRelayStepSuccess = (...args) => {
+      if (isFunction(onRelayStepSuccess)) return onRelayStepSuccess(...args);
+      return null;
+    };
+
+    this.options.onRelayStepCancelled = (...args) => {
+      if (isFunction(onRelayStepCancelled)) return onRelayStepCancelled(...args);
       return null;
     };
   }

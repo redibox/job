@@ -398,8 +398,6 @@ module.exports = class Queue extends EventEmitter {
       // TODO track successes and their data somewhere else for reviewing
       // multi.hset(this.toKey('jobs'), job.id, job.toData());
       // multi.sadd(this.toKey('succeeded'), job.id);
-
-      this.options.onJobSuccess(job, data);
     }
   }
 
@@ -433,6 +431,10 @@ module.exports = class Queue extends EventEmitter {
 
     this._updateJobStatus(error, data, job, multi);
 
+    if (status === 'succeeded') {
+      this.options.onJobSuccess(job, data);
+    }
+
     // emit success or failure event if we have listeners
     if (error && job.options.notifyFailure) {
       this.core.pubsub.publish(job.options.notifyFailure, this._createJobEvent(error, data, job));
@@ -457,7 +459,7 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _finishRelayJob(error, resolvedData, job) {
-    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayJobSuccess', 'notifyRelayCancelled', 'notifyRetry'];
+    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayCancelled', 'notifyRetry'];
     var i = 0;
     // Remove notification flags for jobs so it only alerts once
     for (i; i < notifications.length; i++) {
@@ -474,11 +476,12 @@ module.exports = class Queue extends EventEmitter {
     const multi = this.client.multi();
     const status = error ? 'failed' : 'succeeded';
 
-    // Emit rely Job Step successful
-    // TODO Needs use of subscribe (not subscribeOnce)
-    // if (status === 'succeeded' && job.options._notifyRelayJobSuccess) {
-    //   this.core.pubsub.publish(job.options._notifyRelayJobSuccess, this._createJobEvent(error, resolvedData, job));
-    // }
+    if (status === 'succeeded') {
+      this.options.onRelayStepCancelled(error, job);
+      if (job.options._notifyRelayStepSuccess) {
+        this.core.pubsub.publish(job.options._notifyRelayStepSuccess, this._createJobEvent(error, resolvedData, job));
+      }
+    }
 
     this._updateJobStatus(error, resolvedData, job, multi);
 
@@ -496,8 +499,12 @@ module.exports = class Queue extends EventEmitter {
       });
     }
 
+    if (resolvedData !== false && status === 'succeeded') {
+      this.options.onJobSuccess(job, resolvedData);
+    }
+
     if (resolvedData === false) {
-      this.options.onRelayJobCancelled(error, job);
+      this.options.onRelayStepCancelled(error, job);
     }
 
     if (resolvedData === false && job.options._notifyRelayCancelled && job.type === 'relay') {

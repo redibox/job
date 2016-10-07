@@ -17,7 +17,8 @@ module.exports = {
   afterJobCreate: null,
   onJobSuccess: null,
   onJobFailure: null,
-  onRelayJobCancelled: null,
+  onRelayStepSuccess: null,
+  onRelayStepCancelled: null,
   onJobRetry: null,
 };
 

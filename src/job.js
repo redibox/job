@@ -47,6 +47,7 @@ class Job {
     this.data = this.options.data;
     this.status = this.options.status || 'created';
     this.subscriptions = [];
+    this.onceOfSubscriptions = [];
     this.ignoreProxy = false;
     this.queue = queue;
     this.type = Array.isArray(options.runs) ? 'relay' : 'single';
@@ -142,7 +143,6 @@ class Job {
           return Promise.reject(new Error(`ERR_DUPLICATE: Job ${this.id} already exists, save has been aborted.`));
         }
 
-        // TODO Lifecycle afterJobCreate
         this.core.log.verbose(`Saved job for ${this.queue}`);
 
         this.id = id;
@@ -193,12 +193,12 @@ class Job {
     // Subscribe to events
     if (this.options.notifySuccess) {
       this.options.notifySuccess = `job:${this.id}:onSuccess`;
-      this.subscriptions.push(`job:${this.id}:onSuccess`);
+      this.onceOfSubscriptions.push(`job:${this.id}:onSuccess`);
     }
 
     if (this.options.notifyFailure) {
       this.options.notifyFailure = `job:${this.id}:onFailure`;
-      this.subscriptions.push(`job:${this.id}:onFailure`);
+      this.onceOfSubscriptions.push(`job:${this.id}:onFailure`);
     }
 
     if (this.options.notifyRetry) {
@@ -211,44 +211,64 @@ class Job {
       this.subscriptions.push(`job:${this.id}:onRelayStepSuccess`);
     }
 
-    if (this.options.notifyRelayCancelled) {
+    if (this.options.notifyRelayStepCancelled) {
       this.options.notifyRelayCancelled = `job:${this.id}:onRelayCancelled`;
-      this.subscriptions.push(`job:${this.id}:onRelayCancelled`);
+      this.onceOfSubscriptions.push(`job:${this.id}:onRelayCancelled`);
     }
 
-    if (this.subscriptions.length) {
+    if (this.subscriptions.length || this.onceOfSubscriptions.length) {
       if (!this.core.pubsub.options.subscriber) {
         return Promise.reject(
           new Error('Cannot subscribe to job events when RediBox.pubsub \'subscriber\' config is set to disabled.')
         );
       }
 
-      return this.core.pubsub.subscribeOnceOf(
-        this.subscriptions,
-        (payload) => { // on message received
-          const channel = payload.channel.split(':').pop();
+      const subscriptions = [];
 
-          const callback = this[`${channel}Callback`];
+      const eventListener = (payload) => {
+        const channel = payload.channel.split(':').pop();
 
-          if (!callback) {
-            this.log.warn(`Missing event callback "${callback}" for job ${this.id}`);
-            return;
-          }
+        const callback = this[`${channel}Callback`];
 
-          callback(payload.data);
-        },
-        this.options.timeout + 1000
-      ).then(() =>
-        // now subscribed so save the job
-        this._addJob()
-      ).catch(error =>
-        this.onFailureCallback({
-          type: 'job',
-          error: new Error('Error while subscribing to job events, however this job will still be queued - ' +
-            'you may be unable to receive onSuccess / onFailure events for this job.'),
-          error_actual: error,
-        })
-      );
+        if (!callback) {
+          this.log.warn(`Missing event callback "${callback}" for job ${this.id}`);
+          return;
+        }
+
+        callback(payload.data);
+      };
+
+      if (this.onceOfSubscriptions.length) {
+        subscriptions.push(this.core.pubsub.subscribeOnceOf(
+          this.onceOfSubscriptions,
+          (payload) => {
+            this.core.pubsub.unsubscribe(this.subscriptions, eventListener);
+            eventListener(payload);
+          },
+          this.options.timeout + 1000
+        ));
+      }
+
+      if (this.subscriptions.length) {
+        subscriptions.push(this.core.pubsub.subscribe(
+          this.subscriptions,
+          eventListener
+        ));
+      }
+
+      return Promise
+        .all(subscriptions)
+        .then(() =>
+          // now subscribed so save the job
+          this._addJob()
+        ).catch(error =>
+          this.onFailureCallback({
+            type: 'job',
+            error: new Error('Error while subscribing to job events, however this job will still be queued - ' +
+              'you may be unable to receive onSuccess / onFailure events for this job.'),
+            error_actual: error,
+          })
+        );
     }
 
     return this._addJob();
@@ -310,13 +330,13 @@ class Job {
   }
 
   /**
-   * Set the onRetry callback and notify option
+   * Set the onRelayCancelled callback and notify option
    * @param notify
    * @returns {Job}
    */
-  onRelayCancelled(notify) {
-    this.options.notifyRelayCancelled = true;
-    this.onRelayCancelledCallback = notify;
+  onRelayStepCancelled(notify) {
+    this.options.notifyRelayStepCancelled = true;
+    this.onRelayStepCancelledCallback = notify;
     return this.proxy;
   }
 
