@@ -5,6 +5,34 @@ const EventEmitter = require('eventemitter3');
 const Job = require('./job');
 const defaults = require('./defaults');
 
+const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayStepCancelled', 'notifyRetry'];
+
+/**
+ *
+ * @param job
+ */
+function removeNotificationFlags(job) {
+  var i = 0;
+  // Remove notification flags for jobs so it only alerts once
+  for (i; i < notifications.length; i++) {
+    const notification = notifications[i];
+    if (job.options[notification]) {
+      job.options[`_${notification}`] = job.options[notification];
+      delete job.options[notification];
+    }
+  }
+}
+
+function tryCatcher(fn) {
+  const result = {};
+  try {
+    result.value = fn();
+  } catch (e) {
+    result.error = e;
+  }
+  return result;
+}
+
 /**
  * TODO move to helpers
  * @param errorStack
@@ -183,10 +211,10 @@ module.exports = class Queue extends EventEmitter {
         0,
         (error, id) => {
           if (error) {
-            return cb(error);
+            cb(error);
+          } else {
+            this.getJobById(id, cb);
           }
-
-          return this.getJobById(id, cb);
         });
   }
 
@@ -205,48 +233,51 @@ module.exports = class Queue extends EventEmitter {
   /**
    * Handle a successful job completion
    * @param job
+   * @param nextTick
    * @param resolvedData The return value or resolved value of the jov
    * @returns {*}
    * @private
    */
-  _handleJobSuccess(job, resolvedData) {
+  _handleJobSuccess(job, nextTick, resolvedData) {
     if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
       clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
       clearTimeout(this.handlerTracker[job.id].jobTimeout);
       this.handlerTracker[job.id].handled = true;
-      return this._finishJob(null, resolvedData, job);
+      return this._finishJob(null, resolvedData, job, nextTick);
     }
   }
 
   /**
    * Handle a job promise rejection or thrown error
    * @param job
+   * @param nextTick
    * @param error
    * @returns {*}
    * @private
    */
-  _handleJobError(job, error) {
+  _handleJobError(job, nextTick, error) {
     if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
       clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
       clearTimeout(this.handlerTracker[job.id].jobTimeout);
       const _error = error || new Error('Job was rejected with no error.');
       this.handlerTracker[job.id].handled = true;
       this._logJobFailure(job, _error);
-      return this._finishJob(_error, null, job);
+      return this._finishJob(_error, null, job, nextTick);
     }
   }
 
   /**
    *
    * @param job
+   * @param nextTick
    * @returns {Promise}
    */
-  _runJob(job) {
+  _runJob(job, nextTick) {
     if (!job) {
-      return Promise.resolve();
+      return nextTick();
     }
 
-    const runs = job.options && job.options.runs && Array.isArray(job.options.runs) ? job.options.runs[0].runs : job.options.runs;
+    const runs = job.type === 'relay' ? job.options.runs[0].runs : job.options.runs;
     let handler = null;
 
     if (runs) {
@@ -257,8 +288,11 @@ module.exports = class Queue extends EventEmitter {
       handler = this.handler;
     }
 
+    const handleSuccessBound = this._handleJobSuccess.bind(this, job, nextTick);
+    const handleErrorBound = this._handleJobError.bind(this, job, nextTick);
+
     if (!handler) {
-      return this._handleJobError(job, new Error(
+      return handleErrorBound(new Error(
         `"${job.options.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
              you must either specify a handler function via queue.process() or provide a valid handler
              node global path in your job options 'handler', e.g. if you had a global function in
@@ -267,7 +301,7 @@ module.exports = class Queue extends EventEmitter {
     }
 
     if (!isFunction(handler)) {
-      return this._handleJobError(job, new Error(`Job handler for job ${job.id} is not a function.`));
+      return handleErrorBound(new Error(`Job handler for job ${job.id} is not a function.`));
     }
 
     // Create a class handler tracker for the job
@@ -277,42 +311,60 @@ module.exports = class Queue extends EventEmitter {
       handled: false,
     };
 
-    let promiseOrRes;
-
-    const preventStalling = () => {
-      this.client.srem(this.toKey('stalling'), job.id, () => {
-        if (this.handlerTracker[job.id] && !this.handlerTracker[job.id].handled) {
-          this.handlerTracker[job.id].preventStallingTimeout = setTimeout(preventStalling, this.options.stallInterval / 3);
-        }
-      });
-    };
 
     // start stalling monitoring
-    preventStalling();
+    this._preventJobStalling(job.id);
 
+    // watch for job timeout if option set
     if (job.options.timeout) {
-      this.handlerTracker[job.id].jobTimeout = setTimeout(
-        this._handleJobError.bind(this, job, new Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)),
-        job.options.timeout);
+      this._detectJobTimeout(job, nextTick);
     }
 
-    try {
-      if (job.options.noBind || this.options.noBind) {
-        promiseOrRes = handler(job);
-      } else {
-        promiseOrRes = handler.bind(job, job)(job);
+    let promiseOrRes;
+
+    if (job.options.noBind || this.options.noBind) {
+      promiseOrRes = tryCatcher(handler.bind(null, job));
+    } else {
+      promiseOrRes = tryCatcher(handler.bind(job, job));
+    }
+
+    if (promiseOrRes.error) {
+      return handleErrorBound(promiseOrRes.error);
+    } else {
+      // try via promise if promise detected
+      promiseOrRes = promiseOrRes.value;
+      if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
+        return promiseOrRes.then(handleSuccessBound, handleErrorBound).catch(handleErrorBound);
       }
-    } catch (e) {
-      return this._handleJobError.bind(this)(job, e);
+      // return synchronous result
+      return handleSuccessBound(promiseOrRes);
     }
+  }
 
-    if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
-      return promiseOrRes
-        .then(this._handleJobSuccess.bind(this, job), this._handleJobError.bind(this, job))
-        .catch(this._handleJobError.bind(this, job));
-    }
+  /**
+   *
+   * @param jobId
+   * @private
+   */
+  _preventJobStalling(jobId) {
+    this.client.srem(this.toKey('stalling'), jobId, () => {
+      if (this.handlerTracker[jobId] && !this.handlerTracker[jobId].handled) {
+        this.handlerTracker[jobId].preventStallingTimeout = setTimeout(this._preventJobStalling.bind(this, jobId), this.options.stallInterval / 3);
+      }
+    });
+  }
 
-    return this._handleJobSuccess.bind(this)(job, promiseOrRes);
+  /**
+   *
+   * @param job
+   * @param nextTick
+   * @private
+   */
+  _detectJobTimeout(job, nextTick) {
+    this.handlerTracker[job.id].jobTimeout = setTimeout(
+      this._handleJobError.bind(this, job, nextTick, new Error(`Job ${job.id} timed out (${job.options.timeout}ms)`)),
+      job.options.timeout
+    );
   }
 
   /**
@@ -406,15 +458,22 @@ module.exports = class Queue extends EventEmitter {
     }
   }
 
-  _finishJob(error, resolvedData, job) {
+  /**
+   *
+   * @param error
+   * @param resolvedData
+   * @param job
+   * @param nextTick
+   * @returns {Promise}
+   * @private
+   */
+  _finishJob(error, resolvedData, job, nextTick) {
     delete this.handlerTracker[job.id];
-
     // only relay to next job if user did not resolve 'false' on current job
     if (job.type === 'relay') {
-      return this._finishRelayJob(error, resolvedData, job);
+      return this._finishRelayJob(error, resolvedData, job, nextTick);
     }
-
-    return this._finishSingleJob(error, resolvedData, job);
+    return this._finishSingleJob(error, resolvedData, job, nextTick);
   }
 
   /**
@@ -422,9 +481,10 @@ module.exports = class Queue extends EventEmitter {
    * @param error
    * @param data
    * @param job
+   * @param nextTick
    * @returns {Promise}
    */
-  _finishSingleJob(error, data, job) {
+  _finishSingleJob(error, data, job, nextTick) {
     const multi = this.client.multi();
     const status = error ? 'failed' : 'succeeded';
 
@@ -447,12 +507,7 @@ module.exports = class Queue extends EventEmitter {
       this.core.pubsub.publish(job.options.notifySuccess, this._createJobEvent(error, data, job));
     }
 
-    return new Promise((resolve, reject) => {
-      multi.exec((errMulti) => {
-        if (errMulti) return reject(errMulti);
-        return resolve({ status, result: error || data });
-      });
-    });
+    multi.exec(nextTick);
   }
 
   /**
@@ -460,22 +515,12 @@ module.exports = class Queue extends EventEmitter {
    * @param error
    * @param resolvedData
    * @param job
+   * @param nextTick
    * @returns {Promise}
    * @private
    */
-  _finishRelayJob(error, resolvedData, job) {
-    const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayStepCancelled', 'notifyRetry'];
-    var i = 0;
-    // Remove notification flags for jobs so it only alerts once
-    for (i; i < notifications.length; i++) {
-      const notification = notifications[i];
-
-      if (job.options[notification]) {
-        job.options[`_${notification}`] = job.options[notification];
-        delete job.options[notification];
-      }
-    }
-
+  _finishRelayJob(error, resolvedData, job, nextTick) {
+    removeNotificationFlags(job);
     job.options.runs.shift();
     const nextJob = job.options.runs[0];
     const multi = this.client.multi();
@@ -490,18 +535,11 @@ module.exports = class Queue extends EventEmitter {
 
     this._updateJobStatus(error, resolvedData, job, multi);
 
-    // If no relay error or there are more jobs
+    // if no relay error or there are more jobs
     if (!(job.options.runs.length === 0 || !!error) && resolvedData !== false) {
       job.options.data = resolvedData;
-
-      return new Promise((resolve, reject) => {
-        this.core.hooks.job.create(nextJob.queue, job.options);
-
-        return multi.exec((errMulti) => {
-          if (errMulti) return reject(errMulti);
-          return resolve({ status, result: error || resolvedData });
-        });
-      });
+      this.core.hooks.job.create(nextJob.queue, job.options);
+      return multi.exec(nextTick);
     }
 
     if (resolvedData !== false && status === 'succeeded') {
@@ -524,12 +562,7 @@ module.exports = class Queue extends EventEmitter {
       this.core.pubsub.publish(job.options._notifySuccess, this._createJobEvent(error, resolvedData, job));
     }
 
-    return new Promise((resolve, reject) => {
-      return multi.exec((errMulti) => {
-        if (errMulti) return reject(errMulti);
-        return resolve({ status, result: error || resolvedData });
-      });
-    });
+    return multi.exec(nextTick);
   }
 
   /**
@@ -537,9 +570,6 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _onLocalTickComplete() {
-    this.running -= 1;
-    this.queued -= 1;
-
     if (!this.options.throttle) return setImmediate(this._queueTick.bind(this));
 
     return this.client.throttle(
@@ -548,7 +578,6 @@ module.exports = class Queue extends EventEmitter {
       this.options.throttle.seconds
     ).then((throttle) => {
       const shouldThrottle = throttle[0] === 1;
-
       if (!shouldThrottle) {
         this.throttled = false;
         return setImmediate(this._queueTick.bind(this));
@@ -567,7 +596,6 @@ module.exports = class Queue extends EventEmitter {
    * @private
    */
   _onLocalTickError(error) {
-    this.queued -= 1;
     this.log.error(error);
     setImmediate(this._queueTick.bind(this));
   }
@@ -582,22 +610,11 @@ module.exports = class Queue extends EventEmitter {
       return undefined;
     }
 
-    this.queued += 1;
-
     return this._getNextJob((err, job) => {
       if (err) return this._onLocalTickError.bind(this)(err);
-      this.running += 1;
-
-      // queue more jobs if within limit
-      if ((this.running + this.queued) < this.options.concurrency) {
-        // concurrency is a little pointless right now if we're throttling jobs
-        if (!this.options.throttle) setImmediate(this._queueTick.bind(this));
-      }
-
-      return this
-        ._runJob(job)
-        .then(this._onLocalTickComplete.bind(this))
-        .catch(this._onLocalTickComplete.bind(this));
+      // TODO re-do concurrency
+      process.nextTick(this._queueTick.bind(this));
+      this._runJob(job, this._onLocalTickComplete.bind(this));
     });
   }
 

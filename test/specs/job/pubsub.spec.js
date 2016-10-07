@@ -214,10 +214,9 @@ describe('Job PUBSUB Events', () => {
   //
   //   Hook.create('test', {
   //     runs: 'singleJob',
-  //   }, {
   //     timeout: 1000,
   //   }).onFailure(job => {
-  //     assert.equal(job.error.timeout, true);
+  //     assert.equal(job.timeout, true);
   //     done();
   //   });
   // });

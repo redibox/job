@@ -77,6 +77,7 @@ describe('Base Job Spec', () => {
 
   it('Should NOT bind the Job class to the job when noBind option is enabled', (done) => {
     global.singleJob = function singleJob() {
+      console.log(this.constructor.name);
       assert.equal(this.constructor.name, 'Object');
       done();
     };
@@ -125,9 +126,10 @@ describe('Base Job Spec', () => {
       count++;
 
       if (count === 1000) {
-        return Promise.resolve(count).then(() => done());
+        done();
+        return count;
       }
-      return Promise.resolve(count);
+      return count;
     };
 
     for (var i = 0; i < 1000; i++) {
