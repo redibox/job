@@ -28,40 +28,60 @@ const config = {
 };
 config.hooks[global.HOOK_NAME] = UserHook;
 
-global.fooBar = function () {
-  console.log('FOO BAR');
-  return Promise.resolve({ hello: 123 });
+global.firstJob = function () {
+  console.log('Running firstJob')
+
+  return Promise.resolve();
+
 };
 
-global.fooBarEnd = function () {
-  console.log('FOO BAR END');
+global.secondJob = function () {
+  console.log('Running secondJob')
+  return Promise.resolve(false);
+};
+
+
+global.thirdJob = function () {
+  console.log('Running thirdJob')
   return Promise.resolve();
 };
 
 global.RediBox = new Redibox(config, () => {
   global.Hook = RediBox.hooks[global.HOOK_NAME];
-  console.log('HOOK READY');
-  Hook
-    .create('test2', {
-      runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-      data: {
-        foo: 'bar',
-      },
-    })
-    .onSuccess((result) => {
-      console.log('s'.repeat(80));
-      console.dir(result);
-      console.log('s'.repeat(80));
-      Hook.create('test2', {
-        runs: ['fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBar', 'fooBarEnd'],
-        data: {
-          foo: 'barz',
-        },
+  RediBox.client.flushall().then(() => {
+
+    console.log('HOOK READY');
+
+    for (var i = 0; i < 1000; i++) {
+      Hook.create('test', {
+        runs: 'firstJob',
+        data: i,
       });
-    })
-    .onFailure((result) => {
-      console.log('e'.repeat(80));
-      console.error(result.error);
-      console.log('e'.repeat(80));
-    });
+    }
+
+    // Hook
+    //   .create('test', {
+    //     // runs: ['firstJob', { runs: 'secondJob', queue: 'test2' }, 'thirdJob'],
+    //     // runs: ['firstJob', 'secondJob', 'thirdJob'],
+    //     runs: 'firstJob',
+    //     retries: 1,
+    //     data: {
+    //       foo: 'bar',
+    //     },
+    //   })
+    //   .onRetry(e => {
+    //     retry = true;
+    //     console.log('retry')
+    //     console.log(e)
+    //     console.log('retry')
+    //   })
+    //   .onFailure((e) => {
+    //     console.log(e)
+    //   })
+    //   .onSuccess(e => {
+    //     console.log(e)
+    //   });
+
+  });
+
 });
