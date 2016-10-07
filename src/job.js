@@ -96,7 +96,11 @@ class Job {
     return tryJSONStringify({
       id: this.id,
       status: this.status,
-      options: this.options,
+      options: Object.assign({}, this.options, {
+        data: this.data,
+        id: this.id,
+        status: this.status,
+      }),
     });
   }
 
@@ -110,6 +114,8 @@ class Job {
       status: this.status,
       options: Object.assign({}, this.options, {
         data: excludeData ? 'hidden' : this.data,
+        id: this.id,
+        status: this.status,
       }),
     };
   }
@@ -118,7 +124,7 @@ class Job {
    * Internal save that pushes to redis.
    * @private
    */
-  _save() {
+  _addJob() {
     this.core.log.verbose(`Saving new job ${this.id} for ${this.queue}`);
 
     return this.core.client
@@ -153,22 +159,64 @@ class Job {
   save(auto) {
     if (!auto && this._saved) return Promise.resolve();
 
+    if (Array.isArray(this.options.runs)) {
+      // let compound assign deopt.
+      // eslint-disable-next-line
+      for (var i = 0; i < this.options.runs.length; i++) {
+        const runner = this.options.runs[i];
+
+        if (typeof runner === 'string') {
+          this.options.runs[i] = {
+            runs: runner,
+            queue: i === 0 ? this.queue : this.options.runs[i - 1].queue,
+          };
+        } else {
+          let queue = runner.queue;
+
+          if (!queue) {
+            queue = i === 0 ? this.queue : this.options.runs[i - 1].queue;
+          }
+
+          this.options.runs[i] = {
+            runs: runner.runs,
+            queue,
+          };
+        }
+      }
+    }
+
     // lock it so _autoSave doesn't pick it up but only deletes it from queue
     this._saved = true;
 
     this.id = `${this.queue}${defaults.queueSeparator}${(this.options.unique ? sha1sum(this.data) : cuid())}`;
 
+    // Subscribe to events
     if (this.options.notifySuccess) {
-      this.options.notifySuccess = `job:${this.id}:success`;
-      this.subscriptions.push(`job:${this.id}:success`);
+      this.options.notifySuccess = `job:${this.id}:onSuccess`;
+      this.subscriptions.push(`job:${this.id}:onSuccess`);
     }
 
     if (this.options.notifyFailure) {
-      this.options.notifyFailure = `job:${this.id}:failure`;
-      this.subscriptions.push(`job:${this.id}:failure`);
+      this.options.notifyFailure = `job:${this.id}:onFailure`;
+      this.subscriptions.push(`job:${this.id}:onFailure`);
     }
 
-    if (this.options.notifySuccess || this.options.notifyFailure) {
+    if (this.options.notifyRetry) {
+      this.options.notifyRetry = `job:${this.id}:onRetry`;
+      this.subscriptions.push(`job:${this.id}:onRetry`);
+    }
+
+    if (this.options.notifyRelayStepSuccess) {
+      this.options.notifyRelayStepSuccess = `job:${this.id}:onRelayStepSuccess`;
+      this.subscriptions.push(`job:${this.id}:onRelayStepSuccess`);
+    }
+
+    if (this.options.notifyRelayCancelled) {
+      this.options.notifyRelayCancelled = `job:${this.id}:onRelayCancelled`;
+      this.subscriptions.push(`job:${this.id}:onRelayCancelled`);
+    }
+
+    if (this.subscriptions.length) {
       if (!this.core.pubsub.options.subscriber) {
         return Promise.reject(
           new Error('Cannot subscribe to job events when RediBox.pubsub \'subscriber\' config is set to disabled.')
@@ -177,22 +225,22 @@ class Job {
 
       return this.core.pubsub.subscribeOnceOf(
         this.subscriptions,
-        (message) => { // on message received
-          // remove the pubsub data
-          if (!message.data) message.data = {};
+        (payload) => { // on message received
+          const channel = payload.channel.split(':').pop();
 
-          // if there's an error then assume failed.
-          if (message.data.error) return this.onFailureCallback(message.data);
+          const callback = this[`${channel}Callback`];
 
-          // is it from the success channel.
-          if (this.subscriptions[0] === message.channel) return this.onSuccessCallback(message.data);
+          if (!callback) {
+            this.log.warn(`Missing event callback "${callback}" for job ${this.id}`);
+            return;
+          }
 
-          return this.onFailureCallback(message.data);
+          return callback(payload.data);
         },
         this.options.timeout + 1000
       ).then(() =>
         // now subscribed so save the job
-        this._save()
+        this._addJob()
       ).catch(error =>
         this.onFailureCallback({
           type: 'job',
@@ -203,7 +251,7 @@ class Job {
       );
     }
 
-    return this._save();
+    return this._addJob();
   }
 
   /**
@@ -225,7 +273,6 @@ class Job {
   onSuccess(notify) {
     this.options.notifySuccess = true;
     this.onSuccessCallback = notify;
-    if (!this.onFailureCallback) this.onFailureCallback = noop;
     return this.proxy;
   }
 
@@ -237,7 +284,39 @@ class Job {
   onFailure(notify) {
     this.options.notifyFailure = true;
     this.onFailureCallback = notify;
-    if (!this.onSuccessCallback) this.onSuccessCallback = noop;
+    return this.proxy;
+  }
+
+  /**
+   * Set the onRetry callback and notify option
+   * @param notify
+   * @returns {Job}
+   */
+  onRetry(notify) {
+    this.options.notifyRetry = true;
+    this.onRetryCallback = notify;
+    return this.proxy;
+  }
+
+  /**
+   * Set the onSuccess callback and notify option
+   * @param notify
+   * @returns {Job}
+   */
+  onRelayStepSuccess(notify) {
+    this.options.notifyRelayStepSuccess = true;
+    this.onRelayStepSuccessCallback = notify;
+    return this.proxy;
+  }
+
+  /**
+   * Set the onRetry callback and notify option
+   * @param notify
+   * @returns {Job}
+   */
+  onRelayCancelled(notify) {
+    this.options.notifyRelayCancelled = true;
+    this.onRelayCancelledCallback = notify;
     return this.proxy;
   }
 
