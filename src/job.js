@@ -187,8 +187,8 @@ class Job {
     }
 
     if (this.options.notifyRelayStepCancelled) {
-      this.options.notifyRelayCancelled = `job:${this.id}:onRelayCancelled`;
-      this.onceOfSubscriptions.push(`job:${this.id}:onRelayCancelled`);
+      this.options.notifyRelayStepCancelled = `job:${this.id}:onRelayStepCancelled`;
+      this.onceOfSubscriptions.push(`job:${this.id}:onRelayStepCancelled`);
     }
 
     if (this.options.notifyProgress) {
@@ -211,7 +211,7 @@ class Job {
         const callback = this[`${channel}Callback`];
 
         if (!callback) {
-          this.log.warn(`Missing event callback "${callback}" for job ${this.id}`);
+          this.core.log.warn(`Missing event callback "${callback}" for job ${this.id}`);
           return;
         }
 
@@ -310,7 +310,7 @@ class Job {
   }
 
   /**
-   * Set the onRelayCancelled callback and notify option
+   * Set the onRelayStepCancelled callback and notify option
    * @param notify
    * @returns {Job}
    */
