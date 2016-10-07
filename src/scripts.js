@@ -1,32 +1,30 @@
 module.exports = {
 
   addJob: {
-    keys: 3,
+    keys: 2,
     lua: `
         --[[
         key 1 -> rdb:job:name:jobs
         key 2 -> rdb:job:name:waiting
-        key 3 -> rdb:job:name:id (job ID counter)
         arg 1 -> job data
         arg 2 -> should be unique?
         arg 3 -> customId
         ]]
 
-        local jobId = ARGV[3]
 
         -- if unique enabled
         if ARGV[2] == "true" then
-          local exists = redis.call("hsetnx", KEYS[1], jobId, ARGV[1])
+          local exists = redis.call("hsetnx", KEYS[1], ARGV[3], ARGV[1])
           if exists == 1 then
-            redis.call("lpush", KEYS[2], jobId)
-            return jobId
+            redis.call("lpush", KEYS[2], ARGV[3])
+            return ARGV[3]
           end
           return 0
         else
           -- if not unique enabled
-          redis.call("hset", KEYS[1], jobId, ARGV[1])
-          redis.call("lpush", KEYS[2], jobId)
-          return jobId
+          redis.call("hset", KEYS[1], ARGV[3], ARGV[1])
+          redis.call("lpush", KEYS[2], ARGV[3])
+          return ARGV[3]
         end
     `,
   },

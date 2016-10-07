@@ -101,17 +101,14 @@ class Job {
    */
   _addJob() {
     this.core.log.verbose(`Saving new job ${this.id} for ${this.queue}`);
-
     return this.core.client
       .addjob(
         this._toQueueKey('jobs'),
         this._toQueueKey('waiting'),
-        this._toQueueKey('id'),
         this.toData(),
         !!this.options.unique,
         this.id
-      )
-      .then((id) => {
+      ).then((id) => {
         if (this.options.unique && id === 0) {
           this.status = 'duplicate';
           return Promise.reject(new Error(`ERR_DUPLICATE: Job ${this.id} already exists, save has been aborted.`));
@@ -358,30 +355,30 @@ class Job {
     return `${this.core.hooks.job.options.keyPrefix}:${this.queue}:${str}`;
   }
 
-  remove() {
-    return this.core.client.removejob(
-      this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
-      this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
-      this.id);
-  }
-
-  /**
-   * Re-save this job for the purpose of retrying it.
-   */
-  retry() {
-    return this.core.client.multi()
-      .srem(this._toQueueKey('failed'), this.id)
-      .lpush(this._toQueueKey('waiting'), this.id);
-  }
-
-  /**
-   *
-   * @param set
-   * @returns {Promise.<boolean>}
-   */
-  inSet(set) {
-    return this.core.client.sismember(this._toQueueKey(set), this.id).then(result => result === 1);
-  }
+  // remove() {
+  //   return this.core.client.removejob(
+  //     this._toQueueKey('succeeded'), this._toQueueKey('failed'), this._toQueueKey('waiting'),
+  //     this._toQueueKey('active'), this._toQueueKey('stalling'), this._toQueueKey('jobs'),
+  //     this.id);
+  // }
+  //
+  // /**
+  //  * Re-save this job for the purpose of retrying it.
+  //  */
+  // retry() {
+  //   return this.core.client.multi()
+  //     .srem(this._toQueueKey('failed'), this.id)
+  //     .lpush(this._toQueueKey('waiting'), this.id);
+  // }
+  //
+  // /**
+  //  *
+  //  * @param set
+  //  * @returns {Promise.<boolean>}
+  //  */
+  // inSet(set) {
+  //   return this.core.client.sismember(this._toQueueKey(set), this.id).then(result => result === 1);
+  // }
 
 }
 
