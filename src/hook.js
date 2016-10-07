@@ -25,8 +25,6 @@ module.exports = class JobHook extends BaseHook {
       return Promise.resolve();
     }
 
-    this._setupLifecycleEvents();
-
     for (let i = 0, len = this.options.queues.length; i < len; i++) {
       let queue = this.options.queues[i];
 
@@ -68,38 +66,26 @@ module.exports = class JobHook extends BaseHook {
     return Promise.resolve();
   }
 
-  /**
-   * Overwrite any user lifecycle events with our own & finally call
-   * the users if it's a function
-   * @private
-   */
-  _setupLifecycleEvents() {
+  _beforeJobCreate(...args) {
     const beforeJobCreate = this.options.beforeJobCreate;
+    if (isFunction(beforeJobCreate)) beforeJobCreate(...args);
+  }
+
+  _afterJobCreate(...args) {
     const afterJobCreate = this.options.afterJobCreate;
+    if (isFunction(afterJobCreate)) afterJobCreate(...args);
+  }
+
+  _onJobSuccess(...args) {
     const onJobSuccess = this.options.onJobSuccess;
+    if (isFunction(onJobSuccess)) onJobSuccess(...args);
+  }
+
+  _onJobFailure(...args) {
     const onJobFailure = this.options.onJobFailure;
-    const onJobRetry = this.options.onJobRetry;
-    const onRelayStepSuccess = this.options.onRelayStepSuccess;
-    const onRelayStepCancelled = this.options.onRelayStepCancelled;
-
-    this.options.beforeJobCreate = (...args) => {
-      if (isFunction(beforeJobCreate)) return beforeJobCreate(...args);
-      return null;
-    };
-
-    this.options.afterJobCreate = (...args) => {
-      if (isFunction(afterJobCreate)) return afterJobCreate(...args);
-      return null;
-    };
-
-    this.options.onJobSuccess = (...args) => {
-      if (isFunction(onJobSuccess)) return onJobSuccess(...args);
-      return null;
-    };
-
-    this.options.onJobFailure = (...args) => {
-      if (isFunction(onJobFailure)) return onJobFailure(...args);
-
+    if (isFunction(onJobFailure)) {
+      onJobFailure(...args);
+    } else if (!this.options.mute) {
       this.log.error('');
       this.log.error('--------------- RDB JOB ERROR/FAILURE ---------------');
       this.log.error(`Job: ${args[0].options.runs}` || args[0].queue);
@@ -107,23 +93,22 @@ module.exports = class JobHook extends BaseHook {
       this.log.error(args[1]);
       this.log.error('------------------------------------------------------');
       this.log.error('');
-      return null;
-    };
+    }
+  }
 
-    this.options.onJobRetry = (...args) => {
-      if (isFunction(onJobRetry)) return onJobRetry(...args);
-      return null;
-    };
+  _onJobRetry(...args) {
+    const onJobRetry = this.options.onJobRetry;
+    if (isFunction(onJobRetry)) onJobRetry(...args);
+  }
 
-    this.options.onRelayStepSuccess = (...args) => {
-      if (isFunction(onRelayStepSuccess)) return onRelayStepSuccess(...args);
-      return null;
-    };
+  _onRelayStepSuccess(...args) {
+    const onRelayStepSuccess = this.options.onRelayStepSuccess;
+    if (isFunction(onRelayStepSuccess)) onRelayStepSuccess(...args);
+  }
 
-    this.options.onRelayStepCancelled = (...args) => {
-      if (isFunction(onRelayStepCancelled)) return onRelayStepCancelled(...args);
-      return null;
-    };
+  _onRelayStepCancelled(...args) {
+    const onRelayStepCancelled = this.options.onRelayStepCancelled;
+    if (isFunction(onRelayStepCancelled)) onRelayStepCancelled(...args);
   }
 
   /**
@@ -149,17 +134,17 @@ module.exports = class JobHook extends BaseHook {
       this.autoCreateQueue = {};
     }
 
-    this.options.beforeJobCreate(ref, queue, options);
+    this._beforeJobCreate(ref, queue, options);
 
     this.autoCreateQueue[ref] = new Job(this.core, queue, options, 'isNew');
 
-    this.options.afterJobCreate(this.autoCreateQueue[ref]);
+    this._afterJobCreate(this.autoCreateQueue[ref]);
 
     this.log.verbose(`Creating job for queue ${queue} with reference ${ref}`);
 
     if (!this.autoSaveImmediate) {
       this.autoSaveImmediate = setImmediate(this._autoSave.bind(this));
-    } else if (!Object.keys(this.autoCreateQueue).length >= this.options.autoSave.maxJobs) {
+    } else if (Object.keys(this.autoCreateQueue).length >= this.options.autoSave.maxJobs) {
       this._autoSave();
     }
 
@@ -180,24 +165,6 @@ module.exports = class JobHook extends BaseHook {
    */
   scripts() {
     return scripts;
-  }
-
-  /**
-   * Converts the users key to the full redis key with module prefix.
-   * @param key
-   * @returns {string}
-   */
-  toKey(key = '') {
-    return `${this.options.keyPrefix}:${key}`;
-  }
-
-  /**
-   * To enable bypassing of cache for wrap functions
-   * Toggles by default or pass in true/false
-   * @param bool
-   */
-  enabled(bool) {
-    this.options.enabled = bool || !this.options.enabled;
   }
 
   /**
