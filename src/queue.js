@@ -439,7 +439,38 @@ class Queue extends EventEmitter {
     multi.lrem(this.toKey('active'), 0, job.id);
     multi.srem(this.toKey('stalling'), job.id);
 
-    multi.averagestats(this.toKey('avgTimeInQueue'), this.toKey('stats'), 'avgTimeInQueue', job.id, Math.floor(Math.random() * 500) + 400, 100);
+    // time in the queue until appearing on a worker
+    multi.averagestats(
+      this.toKey('timeInQueue'),
+      this.toKey('stats'),
+      'TimeInQueue',
+      job.id,
+      Math.floor(job.startedAt - job.createdAt),
+      100, // number of records to use for average
+      604800  // expire time - 7 days in seconds
+    );
+
+    // job process time - job start to job complete
+    multi.averagestats(
+      this.toKey('timeToProcess'),
+      this.toKey('stats'),
+      'TimeToProcess',
+      job.id,
+      Math.floor(job.completedAt - job.startedAt),
+      100, // number of records to use for average
+      604800  // expire time - 7 days in seconds
+    );
+
+    // time to complete from job create to job complete
+    multi.averagestats(
+      this.toKey('timeToComplete'),
+      this.toKey('stats'),
+      'TimeToComplete',
+      job.id,
+      Math.floor(job.completedAt - job.createdAt),
+      100, // number of records to use for average
+      604800  // expire time - 7 days in seconds
+    );
 
     if (status === 'failed') {
       if (job.options.retries > 0) {
