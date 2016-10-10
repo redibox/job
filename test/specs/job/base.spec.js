@@ -428,21 +428,45 @@ describe('Base Job Spec', () => {
 
   it('Should allow the job to be retried', (done) => {
     let count = 0;
-    global.fooP = function fooP(job) {
+    global.singleJob = function singleJob(job) {
       count++;
-      console.log('Doing job...')
       if (count === 1) {
         return job.retry();
       }
-      console.log('Haroo')
+      if (count === 2) {
+        return 'retry';
+      }
       return Promise.resolve();
     };
 
     Hook.create('queue1', {
-      runs: 'fooP',
-    }).onSuccess((result) => {
-      assert.equal(count, 2);
+      runs: 'singleJob',
+    }).onSuccess(() => {
+      assert.equal(count, 3);
       done();
     });
   });
+
+  // it('Should retry the job if timeout is reached and retries is set', function(done) {
+  //   this.timeout(10000);
+  //   let count = 0;
+  //   global.singleJob = function queueHandler(job) {
+  //     count++;
+  //     if (count < 4) {
+  //       return new Promise((resolve) => {
+  //         setTimeout(resolve, 2000);
+  //       });
+  //     }
+  //     return Promise.resolve();
+  //   };
+  //
+  //   Hook.create('queue1', {
+  //     runs: 'singleJob',
+  //     retries: 5,
+  //     timeout: 1000,
+  //   }).onSuccess(() => {
+  //     assert.equal(count, 4);
+  //     done();
+  //   })
+  // });
 });

@@ -103,10 +103,6 @@ class Queue extends EventEmitter {
     this.handlerTracker = {};
   }
 
-  _createStatsHash() {
-    this.client.hsetnx(`${this.toKey(this.name)}:stats`)
-  }
-
   /**
    * Returns a job by ID from Redis
    * @param id
@@ -122,6 +118,7 @@ class Queue extends EventEmitter {
           return cb(error, null);
         }
 
+        _job.startedAt = Date.now();
         _job.core = this.core;
         _job.data = _job.options.data;
 
@@ -432,6 +429,7 @@ class Queue extends EventEmitter {
    */
   _updateJobStatus(error, data, job, multi) {
     let status = error ? 'failed' : 'succeeded';
+    job.completedAt = Date.now();
 
     if (data === 'retry') {
       status = 'failed';
@@ -440,6 +438,8 @@ class Queue extends EventEmitter {
 
     multi.lrem(this.toKey('active'), 0, job.id);
     multi.srem(this.toKey('stalling'), job.id);
+
+    multi.averagestats(this.toKey('avgTimeInQueue'), this.toKey('stats'), 'avgTimeInQueue', job.id, Math.floor(Math.random() * 500) + 400, 100);
 
     if (status === 'failed') {
       if (job.options.retries > 0) {
@@ -461,7 +461,6 @@ class Queue extends EventEmitter {
         multi.hdel(this.toKey('jobs'), job.id);
 
         // TODO track failures and their data somewhere else for reviewing
-        // multi.hset(this.toKey('jobs'), job.id, job.toData());
         // multi.sadd(this.toKey('failed'), job.id);
       }
     } else {
@@ -473,6 +472,8 @@ class Queue extends EventEmitter {
       // multi.sadd(this.toKey('succeeded'), job.id);
     }
 
+    multi.hincrby(this.toKey('stats'), job.status, 1);
+    multi.hincrby(this.toKey('stats'), 'total', 1);
     return job.status;
   }
 

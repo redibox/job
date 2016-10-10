@@ -76,6 +76,7 @@ class Job {
       status: this.status,
       queue: this.queue,
       options: this.options,
+      createdAt: Date.now(),
     });
   }
 
@@ -105,6 +106,7 @@ class Job {
       .addjob(
         this._toQueueKey('jobs'),
         this._toQueueKey('waiting'),
+        this._toQueueKey('stats'),
         this.toData(),
         !!this.options.unique,
         this.id

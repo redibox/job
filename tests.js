@@ -28,9 +28,11 @@ const config = {
 };
 config.hooks[global.HOOK_NAME] = UserHook;
 
-global.firstJob = function () {
+global.firstJob = function (job) {
   console.log('Running firstJob')
-
+if (job.data === 3) {
+    return Promise.reject();
+}
   return Promise.resolve();
 
 };
