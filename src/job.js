@@ -316,6 +316,11 @@ class Job {
     return this.proxy;
   }
 
+  /**
+   * Set the onProgress callback and notify option
+   * @param notify
+   * @returns {Proxy}
+   */
   onProgress(notify) {
     this.options.notifyProgress = true;
     this.onProgressCallback = notify;
