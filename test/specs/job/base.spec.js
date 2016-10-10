@@ -155,7 +155,7 @@ describe('Base Job Spec', () => {
       return Promise.resolve(endCount);
     };
 
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 500; i++) {
       Hook.create('queue1', {
         runs: ['relayJob', 'relayJob', 'relayJob', 'relayJobEnd'],
         data: i,
