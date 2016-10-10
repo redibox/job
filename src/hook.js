@@ -214,6 +214,7 @@ module.exports = class JobHook extends BaseHook {
    */
   _createQueue(queue) {
     this.log.verbose(`Queue '${queue.name}' created!`);
+
     this.queues[queue.name] = new Queue(Object.assign({}, this.options, queue), this.core);
   }
 

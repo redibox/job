@@ -103,6 +103,10 @@ class Queue extends EventEmitter {
     this.handlerTracker = {};
   }
 
+  _createStatsHash() {
+    this.client.hsetnx(`${this.toKey(this.name)}:stats`)
+  }
+
   /**
    * Returns a job by ID from Redis
    * @param id
@@ -123,6 +127,7 @@ class Queue extends EventEmitter {
 
         // attach virtual methods
         _job.setProgress = this._setJobProgress.bind(this, _job);
+        _job.retry = this._retryJob.bind(this, _job);
         return cb(error, _job);
       });
   }
@@ -426,7 +431,12 @@ class Queue extends EventEmitter {
    * @private
    */
   _updateJobStatus(error, data, job, multi) {
-    const status = error ? 'failed' : 'succeeded';
+    let status = error ? 'failed' : 'succeeded';
+
+    if (data === 'retry') {
+      status = 'failed';
+      job.options.retries = job.options.retries ? job.options.retries++ : 1;
+    }
 
     multi.lrem(this.toKey('active'), 0, job.id);
     multi.srem(this.toKey('stalling'), job.id);
@@ -462,6 +472,8 @@ class Queue extends EventEmitter {
       // multi.hset(this.toKey('jobs'), job.id, job.toData());
       // multi.sadd(this.toKey('succeeded'), job.id);
     }
+
+    return job.status;
   }
 
   /**
@@ -492,7 +504,6 @@ class Queue extends EventEmitter {
    */
   _finishSingleJob(error, data, job, nextTick) {
     const multi = this.client.multi();
-    const status = error ? 'failed' : 'succeeded';
 
     // Attach job _notifyRetry to job
     if (job.options.notifyRetry) {
@@ -500,7 +511,7 @@ class Queue extends EventEmitter {
       delete job.options.notifyRetry;
     }
 
-    this._updateJobStatus(error, data, job, multi);
+    const status = this._updateJobStatus(error, data, job, multi);
 
     if (status === 'succeeded') {
       this.hook._onJobSuccess(job, data);
@@ -510,7 +521,7 @@ class Queue extends EventEmitter {
     // emit success or failure event if we have listeners
     if (error && job.options.notifyFailure && job.status !== 'retrying') {
       this.core.pubsub.publish(job.options.notifyFailure, this._createJobEvent(error, data, job));
-    } else if (job.options.notifySuccess) {
+    } else if (!error && job.options.notifySuccess && job.status !== 'retrying') {
       this.core.pubsub.publish(job.options.notifySuccess, this._createJobEvent(error, data, job));
     }
 
@@ -531,7 +542,7 @@ class Queue extends EventEmitter {
     job.options.runs.shift();
     const nextJob = job.options.runs[0];
     const multi = this.client.multi();
-    const status = error ? 'failed' : 'succeeded';
+    const status = this._updateJobStatus(error, resolvedData, job, multi)
 
     if (status === 'succeeded') {
       this.hook._onRelayStepSuccess(error, job);
@@ -539,8 +550,6 @@ class Queue extends EventEmitter {
         this.core.pubsub.publish(job.options._notifyRelayStepSuccess, this._createJobEvent(error, resolvedData, job));
       }
     }
-
-    this._updateJobStatus(error, resolvedData, job, multi);
 
     // if no relay error or there are more jobs
     if (!(job.options.runs.length === 0 || !!error) && resolvedData !== false) {
@@ -650,6 +659,24 @@ class Queue extends EventEmitter {
     if (job.options.notifyProgress) {
       this.core.pubsub.publish(job.options.notifyProgress, this._createJobEvent(null, data, job));
     }
+  }
+
+  /**
+   * Move the job from the failed list into the waiting list
+   * @param job
+   * @param cb
+   * @returns {*}
+   * @private
+   */
+  _retryJob(job, cb) {
+    // this.client
+    //   .retryjob(
+    //     this.toKey('failed'),
+    //     this.toKey('waiting'),
+    //     job.id,
+    //     cb
+    //   );
+    return 'retry';
   }
 
   /**

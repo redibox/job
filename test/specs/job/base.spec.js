@@ -103,7 +103,6 @@ describe('Base Job Spec', () => {
 
   it('Should NOT bind the Job class to the job when noBind option is enabled', (done) => {
     global.singleJob = function singleJob() {
-      console.log(this.constructor.name);
       assert.equal(this.constructor.name, 'Object');
       done();
     };
@@ -385,6 +384,26 @@ describe('Base Job Spec', () => {
       runs: 'singleJob',
     }).onSuccess((result) => {
       assert.equal(result.job.progress, 0);
+      done();
+    });
+  });
+
+  it('Should allow the job to be retried', (done) => {
+    let count = 0;
+    global.fooP = function fooP(job) {
+      count++;
+      console.log('Doing job...')
+      if (count === 1) {
+        return job.retry();
+      }
+      console.log('Haroo')
+      return Promise.resolve();
+    };
+
+    Hook.create('queue1', {
+      runs: 'fooP',
+    }).onSuccess((result) => {
+      assert.equal(count, 2);
       done();
     });
   });

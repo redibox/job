@@ -50,6 +50,8 @@ describe('Job PUBSUB Events', () => {
     }).onFailure(payload => {
       assert.equal(payload.error.message, 'foo');
       done();
+    }).onSuccess(() => {
+      done('On success was called unexpectedly');
     });
   });
 
