@@ -64,6 +64,32 @@ describe('Base Job Spec', () => {
       });
   });
 
+  it('Should reject a job where its handler was not found', (done) => {
+    Hook.queues.queue1.once('onJobFailure', (failure) => {
+      assert(failure.error.message.includes('"singleJobyMcJobFace" was not found'));
+      done();
+    });
+
+    Hook
+      .create('queue1', {
+        runs: 'singleJobyMcJobFace',
+      });
+  });
+
+  it('Should reject a job where its handler is not a function', (done) => {
+    global.singleJobyMcJobFaceV2 = 'I am not a function, woops';
+    Hook.queues.queue1.once('onJobFailure', (failure) => {
+      assert(failure.error.message.includes('is not a function'));
+      delete global.singleJobyMcJobFaceV2;
+      done();
+    });
+
+    Hook
+      .create('queue1', {
+        runs: 'singleJobyMcJobFaceV2',
+      });
+  });
+
   // it('Should bind the Job class to the job', (done) => {
   //   global.singleJob = function singleJob() {
   //     assert.equal(this.constructor.name, 'Job');

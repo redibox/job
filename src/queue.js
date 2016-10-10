@@ -236,6 +236,7 @@ class Queue extends EventEmitter {
     const error = typeof jobError === 'string' ? new Error(jobError) : jobError;
     const stack = trimStack(error.stack);
     this.hook._onJobFailure(job, error, stack);
+    this.emit('onJobFailure', { queue: this.name, job, error, stack });
   }
 
   /**
@@ -251,9 +252,8 @@ class Queue extends EventEmitter {
       clearTimeout(this.handlerTracker[job.id].preventStallingTimeout);
       clearTimeout(this.handlerTracker[job.id].jobTimeout);
       this.handlerTracker[job.id].handled = true;
-      return this._finishJob(null, resolvedData, job, nextTick);
+      this._finishJob(null, resolvedData, job, nextTick);
     }
-    return null;
   }
 
   /**
@@ -271,9 +271,8 @@ class Queue extends EventEmitter {
       const _error = error || new Error('Job was rejected with no error.');
       this.handlerTracker[job.id].handled = true;
       this._logJobFailure(job, _error);
-      return this._finishJob(_error, null, job, nextTick);
+      this._finishJob(_error, null, job, nextTick);
     }
-    return null;
   }
 
   /**
@@ -290,6 +289,13 @@ class Queue extends EventEmitter {
     const handleErrorBound = this._handleJobError.bind(this, job, nextTick);
     const handleSuccessBound = this._handleJobSuccess.bind(this, job, nextTick);
     const runs = job.type === 'relay' ? job.options.runs[0].runs : job.options.runs;
+
+    // Create a class handler tracker for the job
+    this.handlerTracker[job.id] = {
+      jobTimeout: null,
+      preventStallingTimeout: null,
+      handled: false,
+    };
 
     // get the handler
     let handler = null;
@@ -311,14 +317,6 @@ class Queue extends EventEmitter {
     if (!isFunction(handler)) {
       return handleErrorBound(new Error(`Job handler for job ${job.id} is not a function.`));
     }
-
-    // Create a class handler tracker for the job
-    this.handlerTracker[job.id] = {
-      jobTimeout: null,
-      preventStallingTimeout: null,
-      handled: false,
-    };
-
 
     // start stalling monitoring
     this._preventJobStalling(job.id);
@@ -506,6 +504,7 @@ class Queue extends EventEmitter {
 
     if (status === 'succeeded') {
       this.hook._onJobSuccess(job, data);
+      this.emit('onJobSuccess', { queue: this.name, job, result: data });
     }
 
     // emit success or failure event if we have listeners

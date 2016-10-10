@@ -25,7 +25,8 @@ const config = {
           seconds: 1,
         },
       },
-      { name: 'queue4',
+      {
+        name: 'queue4',
         handler(...args) {
           return isFunction(global.queue4Handler) && global.queue4Handler(...args)
         },
@@ -58,8 +59,8 @@ global.runners = {
   },
 };
 
-global.queueHandler = function (...args) {
-  return queueHandlerTest.bind(this)(...args);
+global.queueHandler = function queueHandler(...args) {
+  return global.queueHandlerTest.bind(this)(...args);
 };
 
 before(done => {
