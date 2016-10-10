@@ -15,6 +15,10 @@ module.exports = class JobHook extends BaseHook {
     this.autoSaveImmediate = null;
   }
 
+  /**
+   * Bootstrap the hook
+   * @returns {Promise}
+   */
   initialize() {
     if (!this.options.enabled) {
       return Promise.resolve();
@@ -66,21 +70,42 @@ module.exports = class JobHook extends BaseHook {
     return Promise.resolve();
   }
 
+  /**
+   * Triggers right before the job class is initilised
+   * @param args
+   * @private
+   */
   _beforeJobCreate(...args) {
     const beforeJobCreate = this.options.beforeJobCreate;
     if (isFunction(beforeJobCreate)) beforeJobCreate(...args);
   }
 
+  /**
+   * Triggers once the job class has been created
+   * @param args
+   * @private
+   */
   _afterJobCreate(...args) {
     const afterJobCreate = this.options.afterJobCreate;
     if (isFunction(afterJobCreate)) afterJobCreate(...args);
   }
 
+  /**
+   * Triggers once a single job or entire relay has successfully completed
+   * @param args
+   * @private
+   */
   _onJobSuccess(...args) {
     const onJobSuccess = this.options.onJobSuccess;
     if (isFunction(onJobSuccess)) onJobSuccess(...args);
   }
 
+  /**
+   * Triggers on job failure, either manually or via rejection.
+   * Will not trigger if a job is going to be retried.
+   * @param args
+   * @private
+   */
   _onJobFailure(...args) {
     const onJobFailure = this.options.onJobFailure;
     if (isFunction(onJobFailure)) {
@@ -96,16 +121,31 @@ module.exports = class JobHook extends BaseHook {
     }
   }
 
+  /**
+   * Triggered when a job retires.
+   * @param args
+   * @private
+   */
   _onJobRetry(...args) {
     const onJobRetry = this.options.onJobRetry;
     if (isFunction(onJobRetry)) onJobRetry(...args);
   }
 
+  /**
+   * Triggers when an individual job in a relay has been completed.
+   * @param args
+   * @private
+   */
   _onRelayStepSuccess(...args) {
     const onRelayStepSuccess = this.options.onRelayStepSuccess;
     if (isFunction(onRelayStepSuccess)) onRelayStepSuccess(...args);
   }
 
+  /**
+   * Triggered when the user manually cancels a relay step.
+   * @param args
+   * @private
+   */
   _onRelayStepCancelled(...args) {
     const onRelayStepCancelled = this.options.onRelayStepCancelled;
     if (isFunction(onRelayStepCancelled)) onRelayStepCancelled(...args);
