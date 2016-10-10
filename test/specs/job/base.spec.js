@@ -256,7 +256,7 @@ describe('Base Job Spec', () => {
   });
 
   it('Should run the job using the queue string path handler', (done) => {
-    global.queueHandler = function queueHandler(job) {
+    global.queueHandlerTest = function queueHandler(job) {
       assert.equal(job.data.foo, 'bar');
       done();
     };

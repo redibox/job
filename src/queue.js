@@ -1,11 +1,11 @@
 const { deepGet, getTimeStamp, tryJSONStringify, tryJSONParse, isFunction } = require('redibox');
 const Promise = require('bluebird');
 const EventEmitter = require('eventemitter3');
-
 const Job = require('./job');
 const defaults = require('./defaults');
 
 const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayStepCancelled', 'notifyRetry'];
+
 
 /**
  *
@@ -90,6 +90,9 @@ module.exports = class Queue extends EventEmitter {
     this.name = options.name;
     this.client = core.client;
     this.handler = options.handler || null;
+    if (typeof this.handler === 'string') {
+      this.handler = deepGet(global, this.handler);
+    }
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this);
     this.handlerTracker = {};
@@ -282,8 +285,6 @@ module.exports = class Queue extends EventEmitter {
 
     if (runs) {
       handler = deepGet(global, runs);
-    } else if (typeof this.handler === 'string') {
-      handler = deepGet(global, this.handler);
     } else {
       handler = this.handler;
     }

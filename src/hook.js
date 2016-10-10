@@ -1,11 +1,11 @@
-const { BaseHook, isObject, isFunction } = require('redibox');
-const Promise = require('bluebird');
-
 const cuid = require('cuid');
+const Promise = require('bluebird');
+const { BaseHook, isObject, isFunction } = require('redibox');
+
 const Job = require('./job');
 const Queue = require('./queue');
-const defaults = require('./defaults');
 const scripts = require('./scripts');
+const defaults = require('./defaults');
 
 module.exports = class JobHook extends BaseHook {
   constructor() {

@@ -58,6 +58,10 @@ global.runners = {
   },
 };
 
+global.queueHandler = function (...args) {
+  return queueHandlerTest.bind(this)(...args);
+};
+
 before(done => {
   global.RediBox = new Redibox(config, () => {
     global.Hook = RediBox.hooks[global.HOOK_NAME];
