@@ -52,18 +52,19 @@
     "chai": "^3.5.0",
     "coveralls": "^2.11.14",
     "eslint": "^3.6.0",
-    "eslint-config-airbnb": "^11.2.0",
-    "eslint-plugin-jsx-a11y": "^2.2.2",
+    "eslint-config-airbnb": "^12.0.0",
+    "eslint-plugin-import": "^2.0.0",
+    "eslint-plugin-jsx-a11y": "^2.2.3",
+    "eslint-plugin-react": "^6.4.0",
     "isparta": "^4.0.0",
     "istanbul": "^1.1.0-alpha.1",
     "kue": "^0.11.1",
-    "mocha": "^3.0.2",
+    "mocha": "^3.1.1",
     "redibox": "^2.3.0",
     "sinon": "^1.17.6"
   },
   "dependencies": {
     "bluebird": "^3.4.6",
-    "cuid": "^1.3.8",
-    "eventemitter3": "^2.0.0"
+    "cuid": "^1.3.8"
   }
 }

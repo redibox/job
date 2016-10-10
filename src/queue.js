@@ -1,7 +1,7 @@
-const { deepGet, getTimeStamp, tryJSONStringify, tryJSONParse, isFunction } = require('redibox');
 const Promise = require('bluebird');
-const EventEmitter = require('eventemitter3');
-const Job = require('./job');
+const EventEmitter = require('events');
+const { deepGet, getTimeStamp, tryJSONStringify, tryJSONParse, isFunction } = require('redibox');
+
 const defaults = require('./defaults');
 
 const notifications = ['notifyFailure', 'notifySuccess', 'notifyRelayStepSuccess', 'notifyRelayStepCancelled', 'notifyRetry'];
@@ -23,6 +23,11 @@ function removeNotificationFlags(job) {
   }
 }
 
+/**
+ *
+ * @param fn
+ * @returns {{}}
+ */
 function tryCatcher(fn) {
   const result = {};
   try {
@@ -71,7 +76,7 @@ function trimStack(errorStack) {
   return stack;
 }
 
-module.exports = class Queue extends EventEmitter {
+class Queue extends EventEmitter {
 
   /**
    *
@@ -248,6 +253,7 @@ module.exports = class Queue extends EventEmitter {
       this.handlerTracker[job.id].handled = true;
       return this._finishJob(null, resolvedData, job, nextTick);
     }
+    return null;
   }
 
   /**
@@ -267,6 +273,7 @@ module.exports = class Queue extends EventEmitter {
       this._logJobFailure(job, _error);
       return this._finishJob(_error, null, job, nextTick);
     }
+    return null;
   }
 
   /**
@@ -331,15 +338,15 @@ module.exports = class Queue extends EventEmitter {
 
     if (promiseOrRes.error) {
       return handleErrorBound(promiseOrRes.error);
-    } else {
-      // try via promise if promise detected
-      promiseOrRes = promiseOrRes.value;
-      if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
-        return promiseOrRes.then(handleSuccessBound, handleErrorBound).catch(handleErrorBound);
-      }
-      // return synchronous result
-      return handleSuccessBound(promiseOrRes);
     }
+
+    // try via promise if promise detected
+    promiseOrRes = promiseOrRes.value;
+    if (promiseOrRes && promiseOrRes.then && typeof promiseOrRes.then === 'function') {
+      return promiseOrRes.then(handleSuccessBound, handleErrorBound).catch(handleErrorBound);
+    }
+    // return synchronous result
+    return handleSuccessBound(promiseOrRes);
   }
 
   /**
@@ -608,14 +615,14 @@ module.exports = class Queue extends EventEmitter {
    */
   _queueTick() {
     if (this.paused || !this.options.enabled) {
-      return undefined;
+      return null;
     }
 
     return this._getNextJob((err, job) => {
       if (err) return this._onLocalTickError.bind(this)(err);
       // TODO re-do concurrency
       process.nextTick(this._queueTick.bind(this));
-      this._runJob(job, this._onLocalTickComplete.bind(this));
+      return this._runJob(job, this._onLocalTickComplete.bind(this));
     });
   }
 
@@ -636,9 +643,7 @@ module.exports = class Queue extends EventEmitter {
    */
   _setJobProgress(job, value, data) {
     if (isNaN(value)) {
-      if (!this.options.mute) {
-        this.log.error(`Failed up update job (${job.id}) progress, ${value} is not a valid number.`);
-      }
+      if (!this.options.mute) this.log.error(`Failed up update job (${job.id}) progress, ${value} is not a valid number.`);
       return;
     }
 
@@ -686,4 +691,6 @@ module.exports = class Queue extends EventEmitter {
   toEventName(eventName) {
     return `queue:${this.name}:${eventName}`;
   }
-};
+}
+
+module.exports = Queue;
