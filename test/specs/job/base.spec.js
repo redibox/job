@@ -76,6 +76,44 @@ describe('Base Job Spec', () => {
       });
   });
 
+  it('Should log job failures if not muted and there is no onJobFailure function', (done) => {
+    const originalLogger = Hook.log;
+    const originalJobFailure = Hook.options.onJobFailure;
+    Hook.options.mute = false;
+    Hook.options.onJobFailure = null;
+    let logCount = 0;
+    let gotJobError = false;
+
+    Hook.log = {
+      verbose: originalLogger.verbose,
+      info: originalLogger.info,
+      debug: originalLogger.debug,
+      warn: originalLogger.warn,
+      error(log) {
+        logCount += 1;
+        if (log && typeof log === 'string' && log.includes('RDB JOB ERROR/FAILURE')) {
+          gotJobError = true;
+        }
+
+        if (logCount === 5 && gotJobError) {
+          Hook.options.mute = true;
+          Hook.options.onJobFailure = originalJobFailure;
+          Hook.log = originalLogger;
+          done();
+        }
+      },
+    };
+
+    global.singleJobyMcJob = () => {
+      return Promise.reject('NOPE');
+    };
+
+    Hook
+      .create('queue1', {
+        runs: 'singleJobyMcJob',
+      });
+  });
+
   it('Should reject a job where its handler is not a function', (done) => {
     global.singleJobyMcJobFaceV2 = 'I am not a function, woops';
     Hook.queues.queue1.once('onJobFailure', (failure) => {
