@@ -91,7 +91,7 @@ module.exports = class Queue extends EventEmitter {
     this.client = core.client;
     this.handler = options.handler || null;
     if (typeof this.handler === 'string') {
-      this.handler = deepGet(global, this.handler);
+      this.handler = deepGet(global, this.handler) || options.handler;
     }
     this.options = Object.assign({}, defaults.queue, options || {});
     this.core.createClient('block', this);
@@ -280,22 +280,22 @@ module.exports = class Queue extends EventEmitter {
       return nextTick();
     }
 
+    const handleErrorBound = this._handleJobError.bind(this, job, nextTick);
+    const handleSuccessBound = this._handleJobSuccess.bind(this, job, nextTick);
     const runs = job.type === 'relay' ? job.options.runs[0].runs : job.options.runs;
-    let handler = null;
 
+    // get the handler
+    let handler = null;
     if (runs) {
       handler = deepGet(global, runs);
     } else {
-      handler = this.handler;
+      handler = typeof this.handler === 'string' ? deepGet(global, this.handler) : this.handler;
     }
-
-    const handleSuccessBound = this._handleJobSuccess.bind(this, job, nextTick);
-    const handleErrorBound = this._handleJobError.bind(this, job, nextTick);
 
     if (!handler) {
       return handleErrorBound(new Error(
         `"${job.options.runs || 'No Job Handler Specified'}" was not found. Skipping job. To fix this
-             you must either specify a handler function via queue.process() or provide a valid handler
+             you must either specify a handler function via 'queue.handler' or provide a valid handler
              node global path in your job options 'handler', e.g. if you had a global function in
             'global.sails.services.myservice' you'd specify the handler as 'sails.services.myservice.myHandler'.`
       ));
