@@ -574,7 +574,7 @@ class Queue extends EventEmitter {
     job.options.runs.shift();
     const nextJob = job.options.runs[0];
     const multi = this.client.multi();
-    const status = this._updateJobStatus(error, resolvedData, job, multi)
+    const status = this._updateJobStatus(error, resolvedData, job, multi);
 
     if (status === 'succeeded') {
       this.hook._onRelayStepSuccess(error, job);
@@ -695,19 +695,10 @@ class Queue extends EventEmitter {
 
   /**
    * Move the job from the failed list into the waiting list
-   * @param job
-   * @param cb
    * @returns {*}
    * @private
    */
-  _retryJob(job, cb) {
-    // this.client
-    //   .retryjob(
-    //     this.toKey('failed'),
-    //     this.toKey('waiting'),
-    //     job.id,
-    //     cb
-    //   );
+  _retryJob() {
     return 'retry';
   }
 

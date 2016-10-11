@@ -1,6 +1,6 @@
 const cuid = require('cuid');
 const Promise = require('bluebird');
-const { sha1sum, tryJSONStringify, isFunction } = require('redibox');
+const { sha1sum, tryJSONStringify } = require('redibox');
 const defaults = require('./defaults');
 
 // TODO Move to default.js
