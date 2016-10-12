@@ -39,3 +39,4 @@ nbproject
 .node_history
 test.js
 benchmark
+yarn.lock

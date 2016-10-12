@@ -22,9 +22,9 @@ The RediBox Job hook allows code to be run & distributed across many servers, wh
  - Chain together jobs accross multiple queues and pass individual results onto the next job.
    - Cancel the relay at any point on any of the jobs.
    - Throttle stages of the relay by jumping to a throttled queue.
- - Single queue job handler function or individual handlers per job using dot notated paths to global functions. 
- 
-  
+ - Single queue job handler function or individual handlers per job using dot notated paths to global functions.
+
+
 ### Coming in v2
  - Capped history lists of jobs.
  - Queue stats (process times, average job waiting time etc).
@@ -39,9 +39,10 @@ The RediBox Job hook allows code to be run & distributed across many servers, wh
 
 First ensure you have [RediBox](https://github.com/redibox/core) installed.
 
-Install Job via npm: 
+Install Job via npm/yarn:
 
 `npm install redibox-hook-job --save`
+`yarn add redibox-hook-job`
 
 #### Usage
 
