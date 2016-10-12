@@ -14,7 +14,7 @@ const defaultOptions = {
  */
 class Job {
 
-  constructor(core, queue, options, isNew) {
+  constructor(core, queue, options) {
     this.id = options.id || null;
     this.core = core;
     this.options = Object.assign({}, defaultOptions, options);
@@ -31,29 +31,26 @@ class Job {
     // Timeout should apply to individual jobs
     if (this.type === 'relay') this.options.timeout = this.options.timeout * this.options.runs.length;
 
-    if (isNew) {
-      // this Proxy allows chaining methods while still keeping the
-      // save() promise valid
-      this.proxy = new Proxy(this, {
-        get(target, name) {
-          if (name in target) {
-            return target[name];
-          }
+    // this Proxy allows chaining methods while still keeping the
+    // save() promise valid
+    this.proxy = new Proxy(this, {
+      get(target, name) {
+        if (name in target) {
+          return target[name];
+        }
 
-          // haxxors
-          if (!target.ignoreProxy && name === 'then') {
-            target.promise = target.save();
-            return target.promise.then.bind(target.promise);
-          }
+        // haxxors
+        if (!target.ignoreProxy && name === 'then') {
+          target.promise = target.save();
+          return target.promise.then.bind(target.promise);
+        }
 
-          return undefined;
-        },
-      });
+        return undefined;
+      },
+    });
 
-      return this.proxy;
-    }
+    return this.proxy;
 
-    return this;
   }
 
   /**
@@ -250,17 +247,6 @@ class Job {
     }
 
     return this._addJob();
-  }
-
-  /**
-   * Set the number of times this job will retry on failure
-   * @param n
-   * @returns {Job}
-   */
-  retries(n) {
-    if (n < 0) throw Error('Retries cannot be negative');
-    this.options.retries = n - 1;
-    return this.proxy;
   }
 
   /**

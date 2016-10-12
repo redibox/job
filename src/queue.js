@@ -446,8 +446,8 @@ class Queue extends EventEmitter {
       'TimeInQueue',
       job.id,
       Math.floor(job.startedAt - job.createdAt),
-      100, // number of records to use for average
-      604800  // expire time - 7 days in seconds
+      this.options.statsRecalculateAfter, // number of records to use for average
+      this.options.statsExpireAfter  // expire time - 7 days in seconds
     );
 
     // job process time - job start to job complete
@@ -457,8 +457,8 @@ class Queue extends EventEmitter {
       'TimeToProcess',
       job.id,
       Math.floor(job.completedAt - job.startedAt),
-      100, // number of records to use for average
-      604800  // expire time - 7 days in seconds
+      this.options.statsRecalculateAfter, // number of records to use for average
+      this.options.statsExpireAfter  // expire time - 7 days in seconds
     );
 
     // time to complete from job create to job complete
@@ -468,8 +468,8 @@ class Queue extends EventEmitter {
       'TimeToComplete',
       job.id,
       Math.floor(job.completedAt - job.createdAt),
-      100, // number of records to use for average
-      604800  // expire time - 7 days in seconds
+      this.options.statsRecalculateAfter, // number of records to use for average
+      this.options.statsExpireAfter  // expire time - 7 days in seconds
     );
 
     if (status === 'failed') {
@@ -658,11 +658,12 @@ class Queue extends EventEmitter {
       return null;
     }
 
+    // TODO Room for performance improvements here
     return this._getNextJob((err, job) => {
       if (err) return this._onLocalTickError.bind(this)(err);
-      // TODO re-do concurrency
-      process.nextTick(this._queueTick.bind(this));
-      return this._runJob(job, this._onLocalTickComplete.bind(this));
+      setImmediate(this._onLocalTickComplete.bind(this));
+      return this._runJob(job, () => {
+      });
     });
   }
 
@@ -691,6 +692,16 @@ class Queue extends EventEmitter {
     if (job.options.notifyProgress) {
       this.core.pubsub.publish(job.options.notifyProgress, this._createJobEvent(null, data, job));
     }
+  }
+
+  /**
+   * Returns queue statistics
+   * @returns {Promise}
+   */
+  stats() {
+    return this.client.hgetall(
+      this.toKey('stats')
+    );
   }
 
   /**
