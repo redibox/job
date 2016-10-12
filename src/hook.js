@@ -193,6 +193,25 @@ module.exports = class JobHook extends BaseHook {
   }
 
   /**
+   * Return all queue stats
+   * @returns {{}}
+   */
+  queueStats() {
+    if (!this.options.queues.length) {
+      return {};
+    }
+
+    const keys = {};
+
+    for (var i = 0; i < this.options.queues.length; i++) {
+      const queue = this.options.queues[i];
+      keys[queue.name] = this.queues[queue.name].stats();
+    }
+
+    return Promise.props(keys);
+  }
+
+  /**
    * Default config for scheduler
    * @returns {{someDefaultThing: string}}
    */

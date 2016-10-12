@@ -24,7 +24,7 @@ describe('Queue', () => {
   it('Should return a queues status (waiting, active, succeeded, failed)', (done) => {
     Hook.queues.queue1
       .getStatus()
-      .then(results => {
+      .then((results) => {
         assert.isDefined(results);
         assert.isDefined(results.waiting);
         assert.isDefined(results.active);
@@ -41,5 +41,59 @@ describe('Queue', () => {
     Hook.queues.queue1.start();
     assert.equal(Hook.queues.queue1.paused, false);
     done();
+  });
+
+  it('Should return stats of a single queue', (done) => {
+    let count = 0;
+    global.singleJob = function singleJob() {
+      count++;
+
+      if (count === 1000) {
+        return Hook.queues.queue1
+          .stats()
+          .then((stats) => {
+            assert.equal(stats.created, 1000);
+            assert.equal(stats.total, 999);
+            assert.property(stats, 'avgTimeInQueue');
+            assert.property(stats, 'avgTimeToComplete');
+            assert.property(stats, 'avgTimeToProcess');
+            done();
+          });
+      }
+      return count;
+    };
+
+    for (var i = 0; i < 1000; i++) {
+      Hook.create('queue1', {
+        runs: 'singleJob',
+      });
+    }
+  });
+
+  it('Should return stats of a all queues', (done) => {
+    let count = 0;
+    global.singleJob = function singleJob() {
+      count++;
+
+      if (count === 500) {
+        return Hook.queueStats()
+          .then((stats) => {
+            Object.keys(Hook.queues).forEach((key) => {
+              assert.property(stats, key);
+            });
+            done();
+          });
+      }
+      return count;
+    };
+
+    for (var i = 0; i < 250; i++) {
+      Hook.create('queue1', {
+        runs: 'singleJob',
+      });
+      Hook.create('queue2', {
+        runs: 'singleJob',
+      });
+    }
   });
 });

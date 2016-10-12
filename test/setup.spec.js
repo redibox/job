@@ -31,6 +31,7 @@ const config = {
           return isFunction(global.queue4Handler) && global.queue4Handler(...args)
         },
       },
+      'pauseQueue',
     ],
     beforeJobCreate: (...args) => isFunction(global.beforeJobCreate) && global.beforeJobCreate(...args),
     afterJobCreate: (...args) => isFunction(global.afterJobCreate) && global.afterJobCreate(...args),

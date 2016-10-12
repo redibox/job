@@ -20,8 +20,8 @@ describe('Base Job Spec', () => {
       .create('queue1', {
         runs: 'singleJob',
         data: {
-          bar: 'foo'
-        }
+          bar: 'foo',
+        },
       });
   });
 
@@ -32,13 +32,12 @@ describe('Base Job Spec', () => {
       done();
     };
 
-    global.doop = null;
     Hook
       .create('queue1', {
-        runs: 'doop',
+        runs: 'singleJob',
         data: {
-          bar: 'foo'
-        }
+          bar: 'foo',
+        },
       });
   });
 
@@ -51,6 +50,21 @@ describe('Base Job Spec', () => {
   it('Should only allow an object as the second argument (options)', (done) => {
     assert.equal(Hook.create('queue1', 1337), null);
     done();
+  });
+
+  it('Should allow job create to return a promise', (done) => {
+    global.singleJob = function singleJob() {
+      return Promise.resolve();
+    };
+
+    Hook
+      .create('queue1', {
+        runs: 'singleJob',
+      })
+      .then((job) => {
+        assert.equal(job.options.runs, 'singleJob');
+        done();
+      });
   });
 
   it('Should run a single job', (done) => {
@@ -128,17 +142,6 @@ describe('Base Job Spec', () => {
       });
   });
 
-  // it('Should bind the Job class to the job', (done) => {
-  //   global.singleJob = function singleJob() {
-  //     assert.equal(this.constructor.name, 'Job');
-  //     done();
-  //   };
-  //
-  //   Hook.create('queue1', {
-  //     runs: 'singleJob',
-  //   });
-  // });
-
   it('Should NOT bind the Job class to the job when noBind option is enabled', (done) => {
     global.singleJob = function singleJob() {
       assert.equal(this.constructor.name, 'Object');
@@ -179,7 +182,7 @@ describe('Base Job Spec', () => {
     };
 
     Hook.create('queue2', {
-      runs: ['relayJob', 'relayJob', 'relayJob', 'relayJobEnd'],
+      runs: [{ runs: 'relayJob' }, 'relayJob', { runs: 'relayJob' }, 'relayJobEnd'],
     });
   });
 
@@ -319,7 +322,7 @@ describe('Base Job Spec', () => {
   });
 
   it('Should run the job using the queue string path handler', (done) => {
-    global.queueHandlerTest = function queueHandler(job) {
+    global.queueHandlerTest = function queueHandlerTest(job) {
       assert.equal(job.data.foo, 'bar');
       done();
     };
@@ -447,26 +450,93 @@ describe('Base Job Spec', () => {
     });
   });
 
-  // it('Should retry the job if timeout is reached and retries is set', function(done) {
-  //   this.timeout(10000);
-  //   let count = 0;
-  //   global.singleJob = function queueHandler(job) {
-  //     count++;
-  //     if (count < 4) {
-  //       return new Promise((resolve) => {
-  //         setTimeout(resolve, 2000);
-  //       });
-  //     }
-  //     return Promise.resolve();
-  //   };
-  //
-  //   Hook.create('queue1', {
-  //     runs: 'singleJob',
-  //     retries: 5,
-  //     timeout: 1000,
-  //   }).onSuccess(() => {
-  //     assert.equal(count, 4);
-  //     done();
-  //   })
-  // });
+  it('Should retry the job if timeout is reached and retries is set', function(done) {
+    let count = 0;
+    global.singleJob = function singleJob() {
+      count++;
+      if (count < 4) {
+        return new Promise(() => {
+
+        });
+      }
+      return Promise.resolve();
+  };
+
+    Hook.create('queue1', {
+      runs: 'singleJob',
+      retries: 5,
+      timeout: 500,
+    }).onRetry(() => {
+      if (count === 3) {
+        done();
+      }
+    });
+  });
+
+  it('Should allow the queue to be switched mid relay', (done) => {
+    let count = 0;
+    global.singleJob = function singleJob() {
+      count++;
+      return Promise.resolve();
+    };
+
+    global.queueHandlerTest = function queueHandlerTest() {
+      count++;
+      return Promise.resolve();
+    };
+
+    Hook.create('queue1', {
+      runs: ['singleJob', { queue: 'queue2' }, { queue: 'queue1', runs: 'singleJob' }],
+    }).onSuccess(() => {
+      assert.equal(count, 3);
+      done();
+    });
+  });
+
+  it('Should be able to pause a queue and jobs stop running', (done) => {
+    let timeout = null;
+    global.firstJob = function singleJob() {
+      timeout = setTimeout(done, 500);
+    };
+    global.secondJob = function singleJob() {
+      clearTimeout(timeout);
+      return done('Job ran when the queue was supposed to be paused.');
+    };
+
+
+    Hook.queues.pauseQueue.stop();
+    Hook.create('pauseQueue', {
+      runs: 'firstJob',
+    });
+    Hook.create('pauseQueue', {
+      runs: 'secondJob',
+    });
+  });
+
+  it('Should be able to resume a queue and jobs run', (done) => {
+    Hook.queues.pauseQueue.stop();
+    const now = Date.now();
+
+    global.firstJob = function singleJob() {
+      return Promise.resolve();
+    };
+    global.secondJob = function singleJob() {
+      if (Date.now() - now < 500) {
+        return done('Error: Job ran when queue was supposed to be paused.')
+      }
+      done();
+    };
+
+
+    Hook.create('pauseQueue', {
+      runs: 'firstJob',
+    });
+    Hook.create('pauseQueue', {
+      runs: 'secondJob',
+    });
+
+    setTimeout(() => {
+      Hook.queues.pauseQueue.start();
+    }, 500);
+  });
 });
