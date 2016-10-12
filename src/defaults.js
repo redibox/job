@@ -9,6 +9,8 @@ module.exports = {
   stallInterval: 15000,
   mute: false,
   queueSeparator: '|||',
+  statsRecalculateAfter: 10,
+  statsExpireAfter: 604800,
   autoSave: {
     maxJobs: 200,
   },
